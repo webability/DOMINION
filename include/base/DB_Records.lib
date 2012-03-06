@@ -1,0 +1,188 @@
+<?php
+
+/*
+    DB_Records.lib, Dominion, the WebAbility(r) Database Abstraction Layer
+    Contains the class to manage a set of records
+    (c) 2008-2010 Philippe Thomassigny
+
+    This file is part of Dominion
+
+    Dominion is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Dominion is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Dominion.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
+/* @UML_Box -- Do not edit
+|------------------------------------------------------------------|
+| DB_Records: Array of DB_Record for database                      |
+|------------------------------------------------------------------|
+| - records : array(int => DB_Record)                              |
+|------------------------------------------------------------------|
+| + new DB_Records()                                               |
+| + push($value: DB_Record)                                        |
+| + pop() : DB_Record                                              |
+| + shift($value: DB_Record)                                       |
+| + unshift() : DB_Record                                          |
+| + slice($offset: integer, $length: integer)                      |
+| + get($offset: integer) : DB_Record                              |
+| + rewind()                                                       |
+| + current() : DB_Record                                          |
+| + key() : integer                                                |
+| + next() : DB_Record                                             |
+| + valid() : boolean                                              |
+| + __tostring() : string                                          |
+|------------------------------------------------------------------|
+@End_UML_Box */
+
+// =====================================================
+// Object DB_Records
+// Contructor: __construct();
+// Any record object is: DB_Record
+// =====================================================
+class DB_Records extends WAClass implements ArrayAccess, Iterator, Countable
+{
+  private $records = array();
+
+  function __construct($values = null)
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("common/dominion/DB_Records->__construct()", WADebug::SYSTEM);
+
+    parent::__construct();
+
+    if ($values)
+    {
+      if (is_array($values))
+      {
+        foreach($values as $rec)
+        {
+          if ($rec instanceof DB_Record)
+            $this->records[] = $rec;
+        }
+      }
+      elseif ($values instanceof DB_Record)
+      {
+        $this->records[] = $values;
+      }
+    }
+  }
+
+  public function push($rec)
+  {
+    if (!($rec instanceof DB_Record))
+      return;
+
+    array_push($this->records, $rec);
+  }
+
+  public function pop()
+  {
+    return array_pop($this->records);
+  }
+
+  public function unshift($rec)
+  {
+    if (!($rec instanceof DB_Record))
+      return;
+
+    array_unshift($this->records, $rec);
+  }
+
+  public function shift()
+  {
+    return array_shift($this->records);
+  }
+
+  // ArrayAccess implemented
+  public function offsetSet($offset, $value)
+  {
+    if (!($value instanceof DB_Record))
+      return;
+    if (is_null($offset))
+      $this->records[] = $value;
+    else
+      $this->records[$offset] = $value;
+  }
+
+  public function offsetExists($offset)
+  {
+    return isset($this->records[$offset]);
+  }
+
+  public function offsetUnset($offset)
+  {
+    unset($this->records[$offset]);
+  }
+
+  public function offsetGet($offset)
+  {
+    return isset($this->records[$offset]) ? $this->records[$offset] : null;
+  }
+
+  // Iterator implemented
+  public function rewind()
+  {
+    reset($this->records);
+  }
+
+  public function current()
+  {
+    return current($this->records);
+  }
+
+  public function key()
+  {
+    return key($this->records);
+  }
+
+  public function next()
+  {
+    return next($this->records);
+  }
+
+  public function valid()
+  {
+    return current($this->records) !== false;
+  }
+
+  // Countable implemented
+  public function count()
+  {
+    return count($this->records);
+  }
+
+  // print the object
+  public function __toString()
+  {
+    $txt = '';
+    $item = 0;
+    foreach($this->records as $k => $v)
+    {
+      $txt .= ($item++?','.PHP_EOL:'') . $k . ':' . $v;
+    }
+    return '{' . $txt . '}';
+  }
+
+  // Serializable WAClass implemented
+  protected function serial(&$data)
+  {
+    $data['records'] = $this->records;
+  }
+
+  protected function unserial($data)
+  {
+    $this->records = $data['records'];
+  }
+
+}
+
+?>

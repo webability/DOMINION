@@ -1,0 +1,966 @@
+<?php
+
+/*
+    DB_Date.lib, Dominion, the WebAbility(r) Database Abstraction Layer
+    Contains the class to manage dates
+    (c) 2008-2010 Philippe Thomassigny
+
+    This file is part of Dominion
+
+    Dominion is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Dominion is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Dominion.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
+/* @UML_Box -- Do not edit
+|------------------------------------------------------------------|
+| DB_Date: Date manipulation object                                |
+|------------------------------------------------------------------|
+| - ::defaultzone : integer                                        |
+| - ::defaultformat : string                                       |
+| - ::defaultdateformat : string                                   |
+| - ::defaulttimeformat : string                                   |
+| - ::init : boolean                                               |
+| - ::messages : array(string)                                     |
+| - year : integer                                                 |
+| - month : integer                                                |
+| - day : integer                                                  |
+| - hour : integer                                                 |
+| - minute : integer                                               |
+| - second : integer                                               |
+| - cent : integer                                                 |
+| - zone : integer                                                 |
+| - maxs : array(integer)                                          |
+|------------------------------------------------------------------|
+| + new DB_Date($dateinit: mixed)                                  |
+| + ::setDefaultZone($zone: integer)                               |
+| + ::setDefaultFormat($format: string)                            |
+| + ::getDefaultZone() : integer                                   |
+| + ::getDefaultFormat() : string                                  |
+| + __clone(): DB_Date                                             |
+| + getClone() : DB_Date                                           |
+| + setDate() : DB_Date                                            |
+| + copy($date: DB_Date) : DB_Date                                 |
+| + setNow() : DB_Date                                             |
+| + getUnixTime() : integer                                        |
+| + setUnixTime($time: integer) : DB_Date                          |
+| + setYear($year: integer) : DB_Date                              |
+| + setMonth($month: integer) : DB_Date                            |
+| + setDay($day: integer) : DB_Date                                |
+| + setHour($hour: integer) : DB_Date                              |
+| + setMinute($minute: integer) : DB_Date                          |
+| + setSecond($second: integer) : DB_Date                          |
+| + setCent($cent: integer) : DB_Date                              |
+| + setZone($zone: integer) : DB_Date                              |
+| + checkDate() : boolean                                          |
+| + checkTime() : boolean                                          |
+| + setDateString($date: string) : DB_Date                         |
+| - getZero($value: integer, $length: integer) : string            |
+| + getDateFormat($format: string) : string                        |
+| + setDateFormat($format: string, $date: string) : DB_Date        |
+| + getYear() : integer                                            |
+| + getMonth() : integer                                           |
+| + getMaxMonthDays() : integer                                    |
+| + getDay() : integer                                             |
+| + getWeekDay() : integer                                         |
+| + getHour() : integer                                            |
+| + getMinute() : integer                                          |
+| + getSecond() : integer                                          |
+| + getCent() : integer                                            |
+| + getZone() : integer                                            |
+| + inf($date: DB_Date) : boolean                                  |
+| + sup($date: DB_Date) : boolean                                  |
+| + infequal($date: DB_Date) : boolean                             |
+| + supequal($date: DB_Date) : boolean                             |
+| + between($datebegin: DB_Date, $dateend: DB_Date) : boolean      |
+| + addYears($years: integer) : DB_Date                            |
+| + addMonths($months: integer) : DB_Date                          |
+| + addDays($days: integer) : DB_Date                              |
+| + addHours($hours: integer) : DB_Date                            |
+| + addMinutes($minutes: integer) : DB_Date                        |
+| + addSeconds($seconds: integer) : DB_Date                        |
+| + addCents($cents: integer) : DB_Date                            |
+| + __tostring() : string                                          |
+|------------------------------------------------------------------|
+@End_UML_Box */
+
+// =====================================================
+// Object DB_Date
+// Contructor: __construct();
+// =====================================================
+class DB_Date extends WAClass
+{
+  private static $defaultzone = 0;
+  private static $defaultformat = 'Y-m-dTH:i:s.cZ';
+  private static $defaultdateformat = 'Y-m-d';
+  private static $defaulttimeformat = 'H:i:s.c';
+  private static $init = false;
+  private static $messages = array(
+    'DB_Date.badinit' => 'The initialization date is not recognized.',
+    'DB_Date.badzone' => 'The zone is out of authorized bounds -12 to 12: ',
+    'DB_Date.baddateobject' => 'The date is not a DB_Date object.',
+    'DB_Date.baddateunix' => 'The date cannot be converted to Unix Time.',
+    'DB_Date.badyear' => 'The year is out of authorized bounds: 1-9999: ',
+    'DB_Date.badmonth' => 'The month is out of authorized bounds 1-12: ',
+    'DB_Date.daywithoutmonth' => 'The day cannot be set without setting month and year before.',
+    'DB_Date.badday' => 'The day is out of authorized bounds 1-28/31: ',
+    'DB_Date.badhour' => 'The hour is out of authorized bounds 0-23: ',
+    'DB_Date.badminutes' => 'The minutes are out of authorized bounds 0-59: ',
+    'DB_Date.badseconds' => 'The seconds are out of authorized bounds 0-59: ',
+    'DB_Date.badcents' => 'The cents are out of authorized bounds 0-99: ',
+    'DB_Date.baddateformat' => 'The date has a bad format: '
+  );
+
+  // Those variables are ALL integer ONLY
+  private $year = 0;
+  private $month = 0;
+  private $day = 0;
+  private $hour = 0;
+  private $minute = 0;
+  private $second = 0;
+  private $cent = 0;
+  private $zone = 0;
+
+  private $maxs = array(1 => 31, 2 => 28, 3 => 31, 4 => 30, 5 => 31, 6 => 30, 7 => 31, 8 => 31, 9 => 30, 10 => 31, 11 => 30, 12 => 31);
+
+
+  public function __construct($dateinit = null)
+  {
+    if (!self::$init)
+    {
+      // default zone
+      self::$defaultzone = (int)substr(date('O', 0), 0, 3);
+      // send messages to WAMessage
+      WAMessage::addMessages(self::$messages);
+      self::$init = true;
+    }
+
+    parent::__construct();
+
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("include/base/DB_Date->__construct( $dateinit )", WADebug::SYSTEM);
+
+    if ($dateinit)
+      $this->setDate($dateinit);
+  }
+
+  public function __clone()
+  {
+    return $this->getClone();
+  }
+
+  public static function setDefaultZone($z)
+  {
+    // check validity
+    $zone = (int)$z;
+    if ($zone < -12 || $zone > 12)
+      throw new DB_DateException(WAMessage::getMessage('DB_Date.badzone').$z);
+
+    self::$defaultzone = $zone;
+  }
+
+  public static function getDefaultZone()
+  {
+    return self::$defaultzone;
+  }
+
+  public static function setDefaultFormat($f, $d = null, $t = null)
+  {
+    if ($f)
+      self::$defaultformat = $f;
+    if ($d)
+      self::$defaultdateformat = $d;
+    if ($t)
+      self::$defaulttimeformat = $t;
+  }
+
+  public static function getDefaultFormat()
+  {
+    return array('timestamp' => self::$defaultformat, 'date' => self::$defaultdateformat, 'time' => self::$defaulttimeformat);
+  }
+
+  public function getClone()
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("include/base/DB_Date->getClone()", WADebug::SYSTEM);
+
+    $c = new DB_Date();
+    $c->setYear($this->year);
+    $c->setMonth($this->month);
+    $c->setDay($this->day);
+    $c->setHour($this->hour);
+    $c->setMinute($this->minute);
+    $c->setSecond($this->second);
+    $c->setCent($this->cent);
+    $c->setZone($this->zone);
+    return $c;
+  }
+
+  public function setDate($dateinit)
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("include/base/DB_Date->setDate( $dateinit )", WADebug::SYSTEM);
+
+    $this->zone = self::$defaultzone;
+    if ($dateinit instanceof DB_Date)
+      $this->copy($dateinit);
+    elseif ($dateinit == 'N')
+      $this->setNow();
+    elseif (is_integer($dateinit))
+      $this->setUnixTime($dateinit);
+    elseif (is_string($dateinit))
+      $this->setDateString($dateinit);
+    elseif ($dateinit !== null)
+      throw new DB_DateException(WAMessage::getMessage('DB_Date.badinit'));
+    return $this;
+  }
+
+  public function copy($date)
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("include/base/DB_Date->copy( $date )", WADebug::SYSTEM);
+
+    if (!($date instanceof DB_Date))
+      throw new DB_DateException(WAMessage::getMessage('DB_Date.baddateobject'));
+    $this->year = $date->getYear();
+    $this->month = $date->getMonth();
+    $this->day = $date->getDay();
+    $this->hour = $date->getHour();
+    $this->minute = $date->getMinute();
+    $this->second = $date->getSecond();
+    $this->cent = $date->getCent();
+    $this->zone = $date->getZone();
+    return $this;
+  }
+
+  public function setNow()
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("include/base/DB_Date->setNow()", WADebug::SYSTEM);
+
+    return $this->setUnixTime(time());
+  }
+
+  public function getUnixTime()
+  {
+    if (!$this->year || $this->year < 1969 || $this->year > 2038)
+      return null; // throw new DB_DateException(WAMessage::getMessage('baddateunix'] . ' : ' . $this->year);
+    return mktime($this->hour, $this->minute, $this->second, $this->month, $this->day, $this->year);
+  }
+
+  public function setUnixTime($ut)
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("include/base/DB_Date->setUnixTime( $ut )", WADebug::SYSTEM);
+
+    $ut = (int)$ut;
+    $this->year = (int)date("Y", $ut);
+    $this->month = (int)date("m", $ut);
+    $this->day = (int)date("d", $ut);
+    $this->hour = (int)date("H", $ut);
+    $this->minute = (int)date("i", $ut);
+    $this->second = (int)date("s", $ut);
+    $this->cent = 0;
+    $this->zone = self::$defaultzone;
+    return $this;
+  }
+
+  public function setYear($y)
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("include/base/DB_Date->setYear( $y )", WADebug::SYSTEM);
+
+    // verify limits
+    $year = (int)$y;
+    if ($year < 0 || $year > 9999)
+      throw new DB_DateException(WAMessage::getMessage('DB_Date.badyear').$y);
+
+    $this->year = $year;
+    return $this;
+  }
+
+  public function setMonth($m)
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("include/base/DB_Date->setMonth( $m )", WADebug::SYSTEM);
+
+    // verify limits
+    $month = (int)$m;
+    if ($month < 1 || $month > 12)
+      throw new DB_DateException(WAMessage::getMessage('DB_Date.badmonth').$m);
+
+    $this->month = $month;
+    return $this;
+  }
+
+  public function setDay($d)
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("include/base/DB_Date->setDay( $d )", WADebug::SYSTEM);
+
+    // verify limits
+    $day = (int)$d;
+    $max = $this->getMaxMonthDays();
+    if (!$max)
+      throw new DB_DateException(WAMessage::getMessage('DB_Date.daywithoutmonth'));
+    if ($day < 1 || $day > $max)
+      throw new DB_DateException(WAMessage::getMessage('DB_Date.badday').$d);
+
+    $this->day = $day;
+    return $this;
+  }
+
+  public function setHour($h)
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("include/base/DB_Date->setHour( $h )", WADebug::SYSTEM);
+
+    // verify limits
+    $hour = (int)$h;
+    if ($hour < 0 || $hour > 23)
+      throw new DB_DateException(WAMessage::getMessage('DB_Date.badhour').$h);
+
+    $this->hour = $hour;
+    return $this;
+  }
+
+  public function setMinute($m)
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("include/base/DB_Date->setMinute( $m )", WADebug::SYSTEM);
+
+    // verify limits
+    $minute = (int)$m;
+    if ($minute < 0 || $minute > 59)
+      throw new DB_DateException(WAMessage::getMessage('DB_Date.badminutes').$m);
+
+    $this->minute = $minute;
+    return $this;
+  }
+
+  public function setSecond($s)
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("include/base/DB_Date->setSecond( $s )", WADebug::SYSTEM);
+
+    // verify limits
+    $second = (int)$s;
+    if ($second < 0 || $second > 59)
+      throw new DB_DateException(WAMessage::getMessage('DB_Date.badseconds').$s);
+
+    $this->second = $second;
+    return $this;
+  }
+
+  public function setCent($c)
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("include/base/DB_Date->setCent( $c )", WADebug::SYSTEM);
+
+    // verify limits
+    $cent = (int)$c;
+    if ($cent < 0 || $cent > 99)
+      throw new DB_DateException(WAMessage::getMessage('DB_Date.badcents').$c);
+
+    $this->cent = $cent;
+    return $this;
+  }
+
+  public function setZone($z)
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("include/base/DB_Date->setZone( $z )", WADebug::SYSTEM);
+
+    // check validity
+    $zone = (int)$z;
+    if ($zone < -12 || $zone > 12)
+      throw new DB_DateException(WAMessage::getMessage('DB_Date.badzone').$z);
+
+    $this->zone = $zone;
+    return $this;
+  }
+
+  public function checkDate()
+  {
+    if (!is_numeric($this->month) || !is_numeric($this->day) || !is_numeric($this->year) || !is_numeric($this->hour) || !is_numeric($this->minute) || !is_numeric($this->second) || !is_numeric($this->cent) || !is_numeric($this->zone))
+      return false;
+    if ($this->hour < 0 || $this->hour > 23 || $this->minute < 0 || $this->minute > 59 || $this->second < 0 || $this->second > 59 || $this->cent < 0 || $this->cent > 99 || $this->zone < -12 || $this->zone > 12 )
+      return false;
+    return checkdate($this->month, $this->day, $this->year);
+  }
+
+  public function checkTime()
+  {
+    if (!is_numeric($this->hour) || !is_numeric($this->minute) || !is_numeric($this->second) || !is_numeric($this->cent))
+      return false;
+    if ($this->hour < 0 || $this->hour > 23 || $this->minute < 0 || $this->minute > 59 || $this->second < 0 || $this->second > 59 || $this->cent < 0 || $this->cent > 100)
+      return false;
+    return true;
+  }
+
+  public function setDateString($datestring)
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("include/base/DB_Date->setDateString( $datestring )", WADebug::SYSTEM);
+
+    // we DO a regexp on the time !! ( some databases do NOT respect RFC-1123 or universal time "YYYY-MM-DD HH24:MI:SS" in UTC format)
+    // AND we recognize different types of time
+    // we recognize those formats:
+    // YYYY-MM-DD
+    $r1 = '/^([0-9]{4})[\s\-\/:]([0-1][0-9])[\s\-\/:]([0-3][0-9])$/';
+    // HH24:MI:SS
+    // HH24:MI:SS.C
+    $r2 = '/^([0-2][0-9])[\s\-\/:]([0-5][0-9])[\s\-\/:]([0-5][0-9])(\.([0-9]{1,6}))?$/';
+    // YYYY-MM-DDTHH24:MI:SS
+    // YYYY-MM-DDTHH24:MI:SSZ
+    $r3 = '/^([0-9]{4})[\s\-\/:]([0-1][0-9])[\s\-\/:]([0-3][0-9])[Tt\s]([0-2][0-9])[\s\-\/:]([0-5][0-9])[\s\-\/:]([0-5][0-9])(Z|[\+\-][0-1][0-9]){0,1}$/';
+    // YYYY-MM-DDTHH24:MI:SS.C     <= C can have from 1 to N digits (i.e. postgres have 6 digits for microseconds)
+    // YYYY-MM-DDTHH24:MI:SS.CZ
+    $r4 = '/^([0-9]{4})[\s\-\/:]([0-1][0-9])[\s\-\/:]([0-3][0-9])[Tt\s]([0-2][0-9])[\s\-\/:]([0-5][0-9])[\s\-\/:]([0-5][0-9])\.([0-9]{1,6})(Z|[\+\-][0-1][0-9]){0,1}$/';
+//    $r4 = '/^([0-9]{4})[\s\-\/:]([0-1][0-9])[\s\-\/:]([0-3][0-9])[Tt\s]([0-2][0-9])[\s\-\/:]([0-5][0-9])[\s\-\/:]([0-5][0-9])\.([0-9]{1,6})$/';
+
+    if (preg_match($r1, $datestring, $res))
+    {
+      $this->year = (int)$res[1];
+      $this->month = (int)$res[2];
+      $this->day = (int)$res[3];
+      $this->hour = 0;
+      $this->minute = 0;
+      $this->second = 0;
+      $this->cent = 0;
+      $this->zone = self::$defaultzone;
+      $ok = $this->checkDate();
+    }
+    elseif (preg_match($r2, $datestring, $res))
+    {
+      $this->year = 0;
+      $this->month = 0;
+      $this->day = 0;
+      $this->hour = (int)$res[1];
+      $this->minute = (int)$res[2];
+      $this->second = (int)$res[3];
+      if (isset($res[5]))
+      {
+        // we only want cents of the 1..6 positions
+        $c = substr($res[5], 0, 2);
+        if (strlen($c) == 1)
+          $c = $c . '0';
+        $this->cent = (int)$c;
+      }
+      else
+        $this->cent = 0;
+      $this->zone = self::$defaultzone;
+      $ok = $this->checkTime();
+    }
+    elseif (preg_match($r3, $datestring, $res))
+    {
+      $this->year = (int)$res[1];
+      $this->month = (int)$res[2];
+      $this->day = (int)$res[3];
+      $this->hour = (int)$res[4];
+      $this->minute = (int)$res[5];
+      $this->second = (int)$res[6];
+      if (isset($res[7]))
+      {
+        if ($res[7] == 'Z')
+          $this->zone = 0;
+        else
+          $this->zone = (int)$res[7];
+      }
+      else
+        $this->zone = self::$defaultzone;
+      $ok = $this->checkDate();
+    }
+    elseif (preg_match($r4, $datestring, $res))
+    {
+      $this->year = (int)$res[1];
+      $this->month = (int)$res[2];
+      $this->day = (int)$res[3];
+      $this->hour = (int)$res[4];
+      $this->minute = (int)$res[5];
+      $this->second = (int)$res[6];
+      // we only want cents of the 1..6 positions
+      $c = substr($res[7], 0, 2);
+      if (strlen($c) == 1)
+        $c = $c . '0';
+      $this->cent = (int)$c;
+      if (isset($res[8]))
+      {
+        if ($res[8] == 'Z')
+          $this->zone = 0;
+        else
+        {
+          if (strlen($res[8]) == 1)
+            $this->zone = (int)$res[8] * 10;
+          elseif (strlen($res[8]) == 2)
+            $this->zone = (int)$res[8];
+          else
+            $this->zone = ((int)$res[8]) % ((strlen($res[8] - 2) * 10));
+        }
+      }
+      else
+        $this->zone = self::$defaultzone;
+      $ok = $this->checkDate();
+    }
+    else
+      throw new DB_DateException(WAMessage::getMessage('DB_Date.baddateformat').$datestring);
+    if (!$ok)
+      throw new DB_DateException(WAMessage::getMessage('DB_Date.baddateformat').$datestring);
+    return $this;
+  }
+
+  private function getZero($v, $m)
+  {
+    $vs = (string)$v;
+    while (strlen($vs) < $m)
+      $vs = '0' . $vs;
+    return $vs;
+  }
+
+  public function getDateFormat($format)
+  {
+    $f = "";
+    for ($i = 0; $i < strlen($format); $i++)
+    {
+      if ($format[$i] == "d")
+        $f .= $this->getZero($this->day, 2);
+      elseif ($format[$i] == "m")
+        $f .= $this->getZero($this->month, 2);
+      elseif ($format[$i] == "Y")
+        $f .= $this->getZero($this->year, 4);
+      elseif ($format[$i] == "H")
+        $f .= $this->getZero($this->hour, 2);
+      elseif ($format[$i] == "i")
+        $f .= $this->getZero($this->minute, 2);
+      elseif ($format[$i] == "s")
+        $f .= $this->getZero($this->second, 2);
+      elseif ($format[$i] == "c")
+        $f .= $this->getZero($this->cent, 2);
+      elseif ($format[$i] == "Z")
+      {
+        if ($this->zone == 0)
+          $f .= 'Z';
+        else
+        {
+          $f .= ($this->zone < 0?'-':'+') . $this->getZero(abs($this->zone), 2);
+        }
+      }
+      else
+        $f .= $format[$i];
+    }
+    return $f;
+  }
+
+  public function setDateFormat($format, $datestring)
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("include/base/DB_Date->setDateFormat( $format, $datestring )", WADebug::SYSTEM);
+
+    $pos = 0;
+    for ($i = 0; $i < strlen($format); $i++)
+    {
+      switch($format[$i])
+      {
+        case "d":
+          $this->day = (int)substr($datestring, $pos, 2);
+          $pos+=2;
+          break;
+        case "m":
+          $this->month = (int)substr($datestring, $pos, 2);
+          $pos+=2;
+          break;
+        case "Y":
+          $this->year = (int)substr($datestring, $pos, 4);
+          $pos+=4;
+          break;
+        case "H":
+          $this->hour = (int)substr($datestring, $pos, 2);
+          $pos+=2;
+          break;
+        case "i":
+          $this->minute = (int)substr($datestring, $pos, 2);
+          $pos+=2;
+          break;
+        case "s":
+          $this->second = (int)substr($datestring, $pos, 2);
+          $pos+=2;
+          break;
+        case "c":
+          $this->cent = (int)substr($datestring, $pos, 2);
+          $pos+=2;
+          break;
+        case "Z":
+          $z = substr($datestring, $pos, 1);
+          if ($z == 'Z')
+          {
+            $this->zone = 0;
+            $pos++;
+          }
+          else
+          {
+            $this->zone = (int)substr($datestring, $pos, 3);
+            $pos+=3;
+          }
+          break;
+        default:
+          $pos++;
+      }
+    }
+    if (preg_match('/[YmdZ]/', $datestring))
+      if (!$this->checkDate())
+        throw new DB_DateException(WAMessage::getMessage('DB_Date.baddateformat').$datestring);
+    if (!$this->checkTime())
+      throw new DB_DateException(WAMessage::getMessage('DB_Date.baddateformat').$datestring);
+    return $this;
+  }
+
+  public function getYear()
+  {
+    return $this->year;
+  }
+
+  public function getMonth()
+  {
+    return $this->month;
+  }
+
+  public function getMaxMonthDays()
+  {
+    $m = null;
+    if ($this->month && $this->year)
+    {
+      if ($this->month >= 1 && $this->month <= 12)
+        $m = $this->maxs[(int)$this->month];
+      if ($this->year%4==0 && ($this->year%100!=0 || $this->year%400==0) && $this->month == 2)
+        $m = 29;
+    }
+    return $m;
+  }
+
+  public function getDay()
+  {
+    return $this->day;
+  }
+
+  public function getWeekDay()
+  {
+    // we implement Zeller Algorithm.
+    $m = $this->month;
+    if ($m >= 3)
+      $m -= 2;
+    else
+      $m += 10;
+
+    $y = $this->year;
+    if ($m == 11 || $m == 12)
+      $y--;
+
+    $century = (int)($y / 100);
+	  $ynum = $y % 100;
+
+    $g = (int)(2.6 * $m - .2);
+    $g += (int)($this->day + $ynum);
+    $g = (int)($g + $ynum / 4);
+    $g += (int)($century / 4);
+    $g -= (int)(2 * $century);
+    $g %= 7;
+
+    if($y >= 1700 && $y <= 1751)
+    {
+      $g -= 3;
+    }
+    else
+    {
+      if($y <= 1699)
+      {
+        $g -= 4;
+      }
+    }
+    if($g < 0)
+    {
+      $g += 7;
+    }
+
+    return $g;
+  }
+
+  public function getHour()
+  {
+    return $this->hour;
+  }
+
+  public function getMinute()
+  {
+    return $this->minute;
+  }
+
+  public function getSecond()
+  {
+    return $this->second;
+  }
+
+  public function getCent()
+  {
+    return $this->cent;
+  }
+
+  public function getZone()
+  {
+    return $this->zone;
+  }
+
+  public function diff($d)
+  {
+    // calculates the diff based on 2 parameters: julian day, and cents of seconds in a day
+
+    // 1. calculates based on the julian day
+    $jd1 = floor((1461 * ($this->year + 4800 + ($this->month - 14)/12))/4 +(367 * ($this->month - 2 - 12 * (($this->month - 14)/12)))/12 - (3 * (($this->year + 4900 + ($this->month - 14)/12)/100))/4 + $this->day - 32075);
+    $y2 = $d->getYear(); $m2 = $d->getMonth(); $d2 = $d->getDay();
+    $jd2 = floor((1461 * ($y2 + 4800 + ($m2 - 14)/12))/4 +(367 * ($m2 - 2 - 12 * (($m2 - 14)/12)))/12 - (3 * (($y2 + 4900 + ($m2 - 14)/12)/100))/4 + $d2 - 32075);
+
+    $c1 = $this->cent + $this->second*100 + $this->minute * 6000 + $this->hour * 360000 + $this->zone * 360000;
+    $c2 = $d->getCent() + $d->getSecond()*100 + $d->getMinute() * 6000 + $d->getHour() * 360000 + $d->getZone() * 360000;
+
+    $diff1 = $jd1 - $jd2;
+    $diff2 = $c1 - $c2;
+
+    // adjust stuff
+    $neg = false;
+    if ($diff1 < 0)
+    {
+      $diff1 = -$diff1;
+      $diff2 = -$diff2;
+      $neg = true;
+    }
+
+    if (abs($diff2) >= 24*360000)
+    {
+      $s2 = ($diff2<0?-1:1);
+      $diff1 += 1 * $s2;
+      $diff2 -= 24*360000 * $s2;
+    }
+
+    if ($diff1 < 0)
+    {
+      $diff1 = -$diff1;
+      $diff2 = -$diff2;
+      $neg = !$neg;
+    }
+
+    if ($diff2 < 0)
+    {
+      if ($diff1 >= 1)
+      {
+        $diff1 -= 1;
+        $diff2 += 24*360000;
+      }
+      else
+      {
+        $diff2 = -$diff2;
+        $neg = !$neg;
+      }
+    }
+    return array('neg' => $neg, 'days' => $diff1, 'cents' => $diff2);
+  }
+
+  public function equal($d)
+  {
+    $diff = $this->diff($d);
+    return ($diff['days'] == 0 && $diff['cents'] == 0);
+  }
+
+  public function inf($d)
+  {
+    $diff = $this->diff($d);
+    return ($diff['neg']);
+  }
+
+  public function sup($d)
+  {
+    $diff = $this->diff($d);
+    return (!$diff['neg']);
+  }
+
+  public function infequal($d)
+  {
+    $diff = $this->diff($d);
+    return ($diff['neg'] || ($diff['days'] == 0 && $diff['cents'] == 0));
+  }
+
+  public function supequal($d)
+  {
+    $diff = $this->diff($d);
+    return (!$diff['neg'] || ($diff['days'] == 0 && $diff['cents'] == 0));
+  }
+
+  public function between($di, $de)
+  {
+    $diffi = $this->diff($di);
+    $diffe = $this->diff($de);
+    return ($diffe['neg'] || ($diffe['days'] == 0 && $diffe['cents'] == 0)) && (!$diffi['neg'] || ($diffi['days'] == 0 && $diffi['cents'] == 0));
+  }
+
+  public function addYears($y)
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("include/base/DB_Date->addYears( $c )", WADebug::SYSTEM);
+
+    $this->year += $y;
+    // check days ! (i.e 29/feb not on bisextile year)
+    if ($this->day > $this->getMaxMonthDays())
+      $this->day = $this->getMaxMonthDays();
+    return $this;
+  }
+
+  public function addMonths($m)
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("include/base/DB_Date->addMonths( $m )", WADebug::SYSTEM);
+
+    $this->month += $m;
+    // readjust if month != [1..12]
+    if ($this->month > 12)
+      while ($this->month > 12) { $this->month -= 12; $this->year ++; }
+    if ($this->month < 1)
+      while ($this->month < 1) { $this->month += 12; $this->year --; }
+    // check days !
+    if ($this->day > $this->getMaxMonthDays())
+      $this->day = $this->getMaxMonthDays();
+    return $this;
+  }
+
+  public function addDays($d)
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("include/base/DB_Date->addDays( $d )", WADebug::SYSTEM);
+
+    if ($d > 0)
+    {
+      for ($i = 0; $i < $d; $i++)
+      {
+        $this->day++;
+        if ($this->day > $this->getMaxMonthDays())
+        {
+          $this->addMonths(1);
+          $this->day = 1;
+        }
+      }
+    }
+    else
+    {
+      for ($i = 0; $i < -$d; $i++)
+      {
+        $this->day--;
+        if ($this->day < 1)
+        {
+          $this->addMonths(-1);
+          $this->day = $this->getMaxMonthDays();
+        }
+      }
+    }
+    return $this;
+  }
+
+  public function addHours($h)
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("include/base/DB_Date->addHours( $h )", WADebug::SYSTEM);
+
+    $this->hour += $h;
+    // readjust if hour != [0..23]
+    if ($this->hour > 23)
+      while ($this->hour > 23) { $this->hour -= 24; $this->addDays(1); }
+    if ($this->hour < 0)
+      while ($this->hour < 0) { $this->hour += 24; $this->addDays(-1); }
+    return $this;
+  }
+
+  public function addMinutes($m)
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("include/base/DB_Date->addMinutes( $m )", WADebug::SYSTEM);
+
+    $this->minute += $m;
+    // readjust if minute != [0..59]
+    if ($this->minute > 59)
+      while ($this->minute > 59) { $this->minute -= 60; $this->addHours(1); }
+    if ($this->minute < 0)
+      while ($this->minute < 0) { $this->minute += 60; $this->addHours(-1); }
+    return $this;
+  }
+
+  public function addSeconds($s)
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("include/base/DB_Date->addSeconds( $s )", WADebug::SYSTEM);
+
+    $this->second += $s;
+    // readjust if second != [0..59]
+    if ($this->second > 59)
+      while ($this->second > 59) { $this->second -= 60; $this->addMinutes(1); }
+    if ($this->second < 0)
+      while ($this->second < 0) { $this->second += 60; $this->addMinutes(-1); }
+    return $this;
+  }
+
+  public function addCents($c)
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("include/base/DB_Date->addCents( $c )", WADebug::SYSTEM);
+
+    $this->cent += $c;
+    // readjust if cent != [0..99]
+    if ($this->cent > 99)
+      while ($this->cent > 59) { $this->cent -= 100; $this->addSeconds(1); }
+    if ($this->cent < 0)
+      while ($this->cent < 0) { $this->cent += 100; $this->addSeconds(-1); }
+    return $this;
+  }
+
+  protected function serial(&$data)
+  {
+    $data['year'] = $this->year;
+    $data['month'] = $this->month;
+    $data['day'] = $this->day;
+    $data['hour'] = $this->hour;
+    $data['minute'] = $this->minute;
+    $data['second'] = $this->second;
+    $data['cent'] = $this->cent;
+    $data['zone'] = $this->zone;
+  }
+
+  protected function unserial($data)
+  {
+    $this->year = $data['year'];
+    $this->month = $data['month'];
+    $this->day = $data['day'];
+    $this->hour = $data['hour'];
+    $this->minute = $data['minute'];
+    $this->second = $data['second'];
+    $this->cent = $data['cent'];
+    $this->zone = $data['zone'];
+  }
+
+  public function __toString()
+  {
+    if ($this->year == 0 && $this->month == 0 && $this->hour == 0 && $this->minute == 0 && $this->second == 0 && $this->cent == 0)
+      return 'NULL';
+    if ($this->year == 0 && $this->month == 0)
+      return $this->getDateFormat(self::$defaulttimeformat);
+    if ($this->hour == 0 && $this->minute == 0 && $this->second == 0 && $this->cent == 0)
+      return $this->getDateFormat(self::$defaultdateformat);
+    return $this->getDateFormat(self::$defaultformat);
+  }
+
+}
+
+?>

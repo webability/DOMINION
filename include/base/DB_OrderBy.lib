@@ -1,0 +1,88 @@
+<?php
+
+/*
+    DB_OrderBy.lib, Dominion, the WebAbility(r) Database Abstraction Layer
+    Contains the class to manage ordering requests
+    (c) 2008-2010 Philippe Thomassigny
+
+    This file is part of Dominion
+
+    Dominion is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Dominion is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Dominion.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
+/* @UML_Box -- Do not edit
+|------------------------------------------------------------------|
+| DB_OrderBy: Database connector object                               |
+|------------------------------------------------------------------|
+|------------------------------------------------------------------|
+|------------------------------------------------------------------|
+@End_UML_Box */
+
+// =====================================================
+// Object DB_OrderBy
+// Contructor: __construct($field, $updown);
+// =====================================================
+
+final class DB_OrderBy extends WADebug
+{
+  const ASC = 1;
+  const DESC = 2;
+
+  private $field = null;
+  private $updown = null;
+
+  function __construct($field, $updown)
+  {
+    parent::__construct();
+    $this->field = $field;
+    $this->updown = $updown;
+  }
+
+  public function getOrderBy($id)
+  {
+    if (is_integer($this->field))
+      $line = $this->field;
+    else
+    {
+      $line = "";
+      if (is_array($this->field))
+      {
+        $item = 0;
+        foreach($this->field as $f)
+          $line .= ($item++?", ":"").$id.$f;
+      }
+      else
+      {
+        $line = $id.$this->field;
+      }
+    }
+    if($this->updown)
+    {
+      switch($this->updown)
+      {
+        case DB_OrderBy::ASC:
+        $line .= " asc";
+        break;
+        case DB_OrderBy::DESC:
+        $line .= " desc";
+        break;
+        default:
+        $line = "";
+      }
+    }
+    return $line;
+  }
+}
+
+?>

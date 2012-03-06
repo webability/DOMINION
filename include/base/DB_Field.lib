@@ -1,0 +1,175 @@
+<?php
+
+/*
+    DB_Field.lib, Dominion, the WebAbility(r) Database Abstraction Layer
+    Contains the class to manage basic field of information
+    (c) 2008-2010 Philippe Thomassigny
+
+    This file is part of Dominion
+
+    Dominion is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Dominion is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Dominion.  If not, see <http://www.gnu.org/licenses/>.
+*/
+/* @UML_Box -- Do not edit
+|------------------------------------------------------------------|
+| DB_Field: Database connector object                               |
+|------------------------------------------------------------------|
+|------------------------------------------------------------------|
+|------------------------------------------------------------------|
+@End_UML_Box */
+
+// =====================================================
+// Object DB_Field
+// Contructor: __construct($fieldname, $type, $check);
+//    $type is : "varchar", "integer", "real", "date", "datetime", "text", "lob"
+//    $check is array , DB_Check object or NULL
+// =====================================================
+
+class DB_Field extends WAClass
+{
+  const VARCHAR = 1;
+  const TEXT = 2;
+  const DATE = 3;
+  const DATETIME = 4;
+  const INTEGER = 5;
+  const REAL = 6;
+  const LOB = 7;
+
+  protected $name = null;
+  protected $type = null;
+  protected $checks = null;
+
+  function __construct($name, $type, $checks)
+  {
+    parent::__construct();
+
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("common/dominion/DB_Field->__construct( $name, $type, $checks )", WADebug::SYSTEM);
+
+    $this->name = $name;
+    $this->type = $type;
+    $this->checks = $checks;
+  }
+
+  // ==============================================================================
+  // Will be implemented by Childs
+  public function createField($id, $DB, &$ifText)
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("common/dominion/DB_Field->createField($id, $DB, $ifText)", WADebug::SYSTEM);
+
+    return "";
+  }
+
+  // This function is used by the doInsert and doUpdate functions, to create the values to insert/update
+  // Implemented by Childs
+  public function createValue($v, $table, $DB, $id)
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("common/dominion/DB_Field->createValue($v, $table, $DB, $id)", WADebug::SYSTEM);
+
+    return $v;
+  }
+  // ==============================================================================
+
+  // General purpose functions
+  public function createSequence($table)
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("common/dominion/DB_Field->createSequence($table)", WADebug::SYSTEM);
+
+    // This function is made mainly for DB_Base::ORACLE database: DB_Base::ORACLE doesnt use SERIAL or AUTO_INCREMENT fields
+    if ($this->isAutoIncrement())
+    {
+      $name = substr($table."_".$this->name."_seq", 0, 50); // 50 cars max !
+      return "create sequence ".$name;
+    }
+    return null;
+  }
+
+  public function createIndex($table, $id, $DB)
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("common/dominion/DB_Field->createIndex($table, $id, $DB)", WADebug::SYSTEM);
+
+    if ($this->checks)
+      return $this->checks->createIndex($table, $id, $this->name, $DB);
+    return null;
+  }
+
+  public function getName()
+  {
+    return $this->name;
+  }
+
+  public function getType()
+  {
+    return $this->type;
+  }
+
+  public function getChecks()
+  {
+    return $this->checks;
+  }
+
+  public function isPrimaryKey()
+  {
+    if ($this->checks)
+      return $this->checks->contains(DB_Check::PK);
+    return false;
+  }
+
+  public function isAutoIncrement()
+  {
+    if ($this->checks)
+      return $this->checks->contains(DB_Check::AI);
+    return false;
+  }
+
+  public function isNotNull()
+  {
+    if ($this->checks)
+      return $this->checks->contains(DB_Check::NN);
+    return false;
+  }
+
+  public function contains($check)
+  {
+    if ($this->checks)
+      return $this->checks->contains($check);
+    return false;
+  }
+
+  public function getForeignKey()
+  {
+    if ($this->checks)
+      return $this->checks->getForeignKey();
+    return null;
+  }
+
+  protected function serial(&$data)
+  {
+    $data['name'] = $this->name;
+    $data['type'] = $this->type;
+    $data['checks'] = $this->checks;
+  }
+
+  protected function unserial($data)
+  {
+    $this->name = $data['name'];
+    $this->type = $data['type'];
+    $this->checks = $data['checks'];
+  }
+}
+
+?>

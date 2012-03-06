@@ -1,0 +1,240 @@
+<?php
+
+/*
+    DB_Check.lib, Dominion, the WebAbility(r) Database Abstraction Layer
+    Contains the class to force constraints on the fields of information
+    (c) 2008-2010 Philippe Thomassigny
+
+    This file is part of Dominion
+
+    Dominion is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Dominion is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Dominion.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
+/* @UML_Box -- Do not edit
+|------------------------------------------------------------------|
+| DB_Check: Database connector object                               |
+|------------------------------------------------------------------|
+|------------------------------------------------------------------|
+|------------------------------------------------------------------|
+@End_UML_Box */
+
+// =====================================================
+// Object DB_Check
+// Contructor: __construct($checks);
+//    $checks is a string or array of strings.
+//    strings are: "nn" (not null), "pk" (primary key), "ai" (auto_increment),
+//                 "fk.tablename" (foreign key to table,primkey) , "ui" (unique index)
+//                 "in" (index), "mu.field.field", "mi.field.field" (index on multi-fields (this one is the first))
+//                 "dc" delete cascade; "tr" transfer to another fk before delete
+// =====================================================
+class DB_Check extends WAClass
+{
+  // Those constants "must be" a string of 2 characters
+  const PK = "pk";
+  const NN = "nn";
+  const AI = "ai";
+  const FK = "fk";
+  const IN = "in";
+  const UI = "ui";
+  const MI = "mi";
+  const MU = "mu";
+  const DC = "dc";
+  const TR = "tr";
+
+  private $checks = null;
+
+  function __construct($checks)
+  {
+    parent::__construct();
+
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("common/dominion/DB_Check->__construct( $checks )", WADebug::SYSTEM);
+
+    if ($checks != null && !is_array($checks))
+      $checks = array($checks);
+    if ($checks != null)
+    {
+      foreach($checks as $ck)
+      {
+        // mi and mu can have multiple entries
+        if (substr($ck, 0, 2) == "mi" || substr($ck, 0, 2) == "mu")
+        {
+          if (!isset($this->checks[substr($ck, 0, 2)]))
+            $this->checks[substr($ck, 0, 2)] = array();
+          $this->checks[substr($ck, 0, 2)][] = $ck;
+        }
+        else
+        {
+          $this->checks[substr($ck, 0, 2)] = $ck;
+        }
+      }
+    }
+  }
+
+  public function createCheck($name, $DB)
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("common/dominion/DB_Check->createCheck( $name, $DB )", WADebug::SYSTEM);
+
+    $chk = "";
+    if (isset($this->checks[DB_Check::PK]))
+    {
+      switch($DB)
+      {
+        case DB_Base::ORACLE:
+          $chk .= " constraint ".$name."_pk primary key";
+          break;
+        case DB_Base::MSSQL:
+          $chk .= " not null primary key";
+          break;
+        default:
+          $chk .= " primary key";
+          break;
+      }
+    }
+    if (isset($this->checks[DB_Check::AI]))
+    {
+      if ($DB == DB_Base::MYSQL)
+        $chk .= " auto_increment";
+      if ($DB == DB_Base::MSSQL)
+        $chk .= " identity(1,1)";
+    }
+    if (isset($this->checks[DB_Check::NN]))
+    {
+      switch($DB)
+      {
+        case DB_Base::ORACLE:
+          $chk .= " constraint ".$name."_nn not null";
+          break;
+        case DB_Base::MSSQL:
+          if(!isset($this->checks[DB_Check::PK]))
+            $chk .= " not null";
+          break;
+        default:
+          $chk .= " not null";
+          break;
+      }
+    }
+    else
+    {
+      if ($DB == DB_Base::MSSQL && !isset($this->checks[DB_Check::PK]))
+      {
+        $chk .= " null";
+      }
+    }
+    if (isset($this->checks[DB_Check::FK]))
+    {
+      // we have to search for the table name and the prim key of the other table
+      $expfk = explode(".",substr($this->checks[DB_Check::FK], 3));
+      $fktable = $expfk[0]; $fkfield = $expfk[1];
+      switch($DB)
+      {
+        case DB_Base::ORACLE:
+          $chk .= " constraint ".$name."_fk references $fktable($fkfield)";
+          break;
+        case DB_Base::MYSQL: // no references
+          break;
+        case DB_Base::MSSQL:
+          $chk .= " references $fktable($fkfield)";
+/*
+          if($this->contains(DB_Check::DC))
+          {
+            $chk .= " on delete cascade";
+          }
+*/
+          break;
+        default:
+          $chk .= " references $fktable($fkfield)";
+          break;
+      }
+    }
+    return $chk;
+  }
+
+  public function createIndex($table, $id, $name, $DB)
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("common/dominion/DB_Check->createIndex( $table, $id, $name, $DB )", WADebug::SYSTEM);
+
+    $indexes = array();
+    if (isset($this->checks[DB_Check::IN]))
+      $indexes[] = "create index i$id$name on $table($id$name)";
+    if (isset($this->checks[DB_Check::UI]))
+      $indexes[] = "create unique index i$id$name on $table($id$name)";
+    // Search for the multiples
+    if (isset($this->checks[DB_Check::MI]))
+    {
+      foreach($this->checks[DB_Check::MI] as $ck)
+      {
+        // explode the fields
+        $fields = explode(".", $ck);
+        // delete 1rst one which is ID
+        unset($fields[0]);
+        $strfields = $id.$name;
+        foreach($fields as $f)
+        {
+          $strfields .= ", $id$f";
+        }
+        $indexes[] = "create index i$id$name on $table($strfields)";
+      }
+    }
+    if (isset($this->checks[DB_Check::MU]))
+    {
+      foreach($this->checks[DB_Check::MU] as $ck)
+      {
+        // explode the fields
+        $fields = explode(".", $ck);
+        // delete 1rst one which is ID
+        unset($fields[0]);
+        $strfields = $id.$name;
+        foreach($fields as $f)
+        {
+          $strfields .= ", $id$f";
+        }
+        $indexes[] = "create unique index i$id$name on $table($strfields)";
+      }
+    }
+    return $indexes;
+  }
+
+  public function contains($chk)
+  {
+    return ($this->checks && isset($this->checks[$chk]));
+  }
+
+  public function getForeignKey()
+  {
+    foreach($this->checks as $chk)
+    {
+      if (is_string($chk) && substr($chk, 0, 2) == "fk")
+      {
+        return substr($chk, 3);
+      }
+    }
+    return null;
+  }
+
+  protected function serial(&$data)
+  {
+    $data['checks'] = $this->checks;
+  }
+
+  protected function unserial($data)
+  {
+    $this->checks = $data['checks'];
+  }
+
+}
+
+?>

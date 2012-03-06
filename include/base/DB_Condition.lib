@@ -1,0 +1,158 @@
+<?php
+
+/*
+    DB_Condition.lib, Dominion, the WebAbility(r) Database Abstraction Layer
+    Contains the class to manage conditions to search information in queries
+    (c) 2008-2010 Philippe Thomassigny
+
+    This file is part of Dominion
+
+    Dominion is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Dominion is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Dominion.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
+/* @UML_Box -- Do not edit
+|------------------------------------------------------------------|
+| DB_Condition: Database connector object                               |
+|------------------------------------------------------------------|
+|------------------------------------------------------------------|
+|------------------------------------------------------------------|
+@End_UML_Box */
+
+// =====================================================
+// Object DB_Condition
+// Contructor: __construct($field, $operator, $limit, $globaloperator, $openatom, $closeatom);
+// =====================================================
+
+final class DB_Condition extends WADebug
+{
+  private $field = null;
+  private $op = null;
+  private $limit = null;
+  private $opGlobal = null;
+  private $openAtom = null;
+  private $closeAtom = null;
+
+  function __construct($field, $op, $limit, $opGlobal = null, $openAtom = 0, $closeAtom = 0)
+  {
+    parent::__construct();
+    $this->field = $field;
+    $this->op = $op;
+    $this->limit = $limit;
+    $this->opGlobal = $opGlobal;
+    $this->openAtom = $openAtom;
+    $this->closeAtom = $closeAtom;
+  }
+
+  public function getCondition($id, $table, $DB, $prepend = null)
+  {
+    $f = $table->getField($this->field);
+    if (!$f)
+      throw new BadFieldError("Field <b>".$this->field."</b> does not exist into the table definition");
+
+    $cond = ($this->openAtom ? str_repeat("(", $this->openAtom===true?1:$this->openAtom) : "");
+    if($this->op == "=")
+    {
+      if ($this->limit === null)
+        $cond .= $prepend.$id.$this->field." is ".$f->createValue($this->limit, null, $DB, $id);
+      else
+        $cond .= $prepend.$id.$this->field.$this->op.$f->createValue($this->limit, null, $DB, $id);
+    }
+    else if ($this->op == "!=")
+    {
+      if ($this->limit === null)
+        $cond .= $prepend.$id.$this->field." is not ".$f->createValue($this->limit, null, $DB, $id);
+      else
+        $cond .= $prepend.$id.$this->field." != " . $f->createValue($this->limit, null, $DB, $id);
+    }
+    else if ($this->op == ">=" || $this->op == "<=" ||$this->op == ">" || $this->op == "<")
+    {
+      $cond .= $prepend.$id.$this->field." ".$this->op." ".$f->createValue($this->limit, null, $DB, $id);
+    }
+    else if ($this->op == "in")
+    {
+      $cond .= $prepend.$id.$this->field." in " . $this->limit;
+    }
+    else if ($this->op == "not in")
+    {
+      $cond .= $prepend.$id.$this->field." not in " . $this->limit;
+    }
+    else if ($this->op == "like")
+    {
+      // Paulino, ilike para versiones postgresql > ... ?
+      if($table->getConnectorType() == DB_Base::POSTGRES)
+        $cond .= $prepend.$id.$this->field." ilike " . "'%" . $this->limit . "%'";
+      else
+        $cond .= $prepend.$id.$this->field." like " . "'%" . $this->limit . "%'";
+    }
+    else if ($this->op == "not like")
+    {
+      // Paulino
+      if($table->getConnectorType() == DB_Base::POSTGRES)
+        $cond .= $prepend.$id.$this->field." not ilike " . "'%" . $this->limit . "%'";
+      else
+        $cond .= $prepend.$id.$this->field." not like " . "'%" . $this->limit . "%'";
+    }
+    else if ($this->op == "match")
+    {
+      // Paulino
+      if($table->getConnectorType() == DB_Base::POSTGRES)
+        $cond .= $prepend.$id.$this->field." ilike " . "'" . $this->limit . "'";
+      else
+        $cond .= $prepend.$id.$this->field." like " . "'" . $this->limit . "'";
+    }
+    else if ($this->op == "not match")
+    {
+      // Paulino
+      if($table->getConnectorType() == DB_Base::POSTGRES)
+        $cond .= $prepend.$id.$this->field." not ilike " . "'" . $this->limit . "'";
+      else
+        $cond .= $prepend.$id.$this->field." not like " . "'" . $this->limit . "'";
+    }
+
+    $cond .= ($this->closeAtom ? str_repeat(")", $this->closeAtom===true?1:$this->closeAtom) : "");
+    return $cond;
+  }
+
+  public function getOpGlobal()
+  {
+    return $this->opGlobal;
+  }
+
+  public function getField()
+  {
+    return $this->field;
+  }
+
+  public function getOp()
+  {
+    return $this->op;
+  }
+
+  public function getLimit()
+  {
+    return $this->limit;
+  }
+
+  public function getOpenAtom()
+  {
+    return $this->openAtom;
+  }
+
+  public function getCloseAtom()
+  {
+    return $this->closeAtom;
+  }
+}
+
+?>

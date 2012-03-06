@@ -1,0 +1,315 @@
+<?php
+
+/*
+    DB_Cursor.lib, Dominion, the WebAbility(r) Database Abstraction Layer
+    Contains the class to manage cursor to access the database
+    (c) 2008-2010 Philippe Thomassigny
+
+    This file is part of Dominion
+
+    Dominion is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Dominion is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Dominion.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
+/* @UML_Box -- Do not edit
+|------------------------------------------------------------------|
+| DB_Cursor: Database cursor                                       |
+|------------------------------------------------------------------|
+|------------------------------------------------------------------|
+|------------------------------------------------------------------|
+@End_UML_Box */
+
+// Cursor class
+class DB_Cursor extends WAObject
+{
+  private static $init = false;
+  private static $messages = array(
+    'DB_Cursor.base' => 'The DB_Base database connector is not correctly set.',
+    'DB_Cursor.exec' => 'The execution of the SQL sentence has failed: '
+  );
+
+  private $database;
+  private $cur = null;
+  private $columns = null;
+  private $id = null;
+  private $type = null;
+  private $ODBC = null;
+
+  function __construct(DB_Base $database)
+  {
+    parent::__construct();
+
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("common/dominion/DB_Cursor->__construct( $base )", WADebug::SYSTEM);
+
+    if (!$database)
+      throw new DB_CursorException(WAMessage::getMessage('DB_Cursor.base'));
+    $database->checkLogon();
+
+    $this->database = $database;
+    $this->id = $this->database->getId();
+    $this->type = $this->database->getType();
+    $this->ODBC = $this->database->getODBC();
+  }
+
+  public function getType()
+  {
+    return $this->type;
+  }
+
+  // If $Parameters is set, we can use ? ? ? into SQL syntax to point values
+  public function Exec($sql, $Parameters = null)
+  {
+    if (is_array($sql))
+      $sql = $sql[$this->type];
+
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("common/dominion/DB_Cursor->Exec( $sql, $Parameters )", WADebug::SYSTEM);
+
+    if ($this->ODBC)
+    {
+      if ($Parameters)
+      {
+        $this->cur = @odbc_prepare($this->id, $sql);
+        if ($this->cur)
+        {
+          $res = @odbc_execute($this->cur, $Parameters);
+          if (!$res)
+            $this->cur = null;
+        }
+      }
+      else
+      {
+        $this->cur = @odbc_exec($this->id, $sql);
+      }
+      if (!$this->cur)
+        throw new DB_CursorException(WAMessage::getMessage('DB_Cursor.exec') . $sql . ': ' . odbc_error($this->id).': '.odbc_errormsg($this->id));
+    }
+    else
+    {
+      switch($this->type)
+      {
+        case DB_Base::ORACLE:
+          $this->cur = @OCIParse($this->id, $sql);
+          if (!$this->cur)
+          {
+            $error = OCIError($this->id);
+            throw new DB_CursorException(WAMessage::getMessage('DB_Cursor.exec') . $sql . ': ' . $error['code'].': '.$error['message']);
+          }
+          $result = OCIExecute($this->cur, $this->database->getCommitMethod() );
+          if (!$result)
+          {
+            $error = OCIError($this->cur);
+            throw new DB_CursorException(WAMessage::getMessage('DB_Cursor.exec') . $sql . ': ' . $error['code'].': '.$error['message']);
+          }
+          break;
+        case DB_Base::POSTGRES:
+
+// $result = pg_prepare($dbconn, "my_query", 'SELECT * FROM shops WHERE name = $1');
+// Execute the prepared query.  Note that it is not necessary to escape
+// the string "Joe's Widgets" in any way
+// $result = pg_execute($dbconn, "my_query", array("Joe's Widgets"));
+
+          $this->cur = @pg_exec($this->id, $sql);
+          if (!$this->cur)
+            throw new DB_CursorException(WAMessage::getMessage('DB_Cursor.exec') . $sql . ': ' . pg_last_error());
+          break;
+        case DB_Base::MYSQL:
+/*
+$stmt = $mysqli->prepare("SELECT * FROM test WHERE id = ?");
+for ( $i = 0; $i <= 30000; ++$i )
+{
+    $stmt->bind_param("i", $i);
+    $stmt->execute();
+    $stmt->bind_result($id, $md5);
+    $stmt->fetch();
+    echo $id;
+}
+$stmt->close();
+*/
+          $this->cur = @mysql_query($sql, $this->id);
+          if (!$this->cur)
+            throw new DB_CursorException(WAMessage::getMessage('DB_Cursor.exec') . $sql . ': ' . mysql_errno().': '.mysql_error());
+          break;
+        case DB_Base::MYSQLi:
+          $this->cur = $this->id->query($sql);
+          if (!$this->cur)
+            throw new DB_CursorException(WAMessage::getMessage('DB_Cursor.exec') . $sql . ': ' . $this->id->errno.': '.$this->id->error);
+          break;
+        case DB_Base::INFORMIX:
+          $this->cur = @ifx_query($sql, $this->id);
+          if (!$this->cur)
+            throw new DB_CursorException(WAMessage::getMessage('DB_Cursor.exec') . $sql . ': ' . ifx_error().': '.ifx_errormsg());
+          break;
+        case DB_Base::MSSQL:
+          $this->cur = @mssql_query($sql, $this->id);
+          if (!$this->cur)
+            throw new DB_CursorException(WAMessage::getMessage('DB_Cursor.exec') . $sql . ': ' . mssql_get_last_message());
+          break;
+        case DB_Base::INTERBASE:
+          $this->cur = @ibase_query($this->id, $sql);
+          if (!$this->cur)
+            throw new DB_CursorException(WAMessage::getMessage('DB_Cursor.exec') . $sql . ': ' . ibase_errcode().': '.ibase_errmsg());
+          break;
+        case DB_Base::SYBASE:
+          $this->cur = @sybase_query($sql, $this->id);
+          if (!$this->cur)
+            throw new DB_CursorException(WAMessage::getMessage('DB_Cursor.exec') . $sql . ': ' . sybase_get_last_message());
+          break;
+      }
+    }
+    return $this;
+  }
+
+  public function Fetch()
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug('common/dominion/DB_Cursor->Fetch()', WADebug::SYSTEM);
+
+    $this->columns = null;
+    if ($this->ODBC)
+    {
+      $this->columns = odbc_fetch_array($this->cur);
+    }
+    else
+    {
+      switch($this->type)
+      {
+        case DB_Base::ORACLE:
+          $columns = null;
+          $ret = @OCIFetchInto($this->cur, $columns, OCI_NUM+OCI_RETURN_NULLS);
+          $this->columns = $columns;
+          if (!$ret)
+          {
+            $this->columns = null;
+          }
+          break;
+        case DB_Base::POSTGRES:
+          $this->columns = @pg_fetch_array($this->cur);
+          break;
+        case DB_Base::MYSQL:
+          $this->columns = @mysql_fetch_row($this->cur);
+          break;
+        case DB_Base::MYSQLi:
+          $this->columns = @$this->cur->fetch_row();
+          break;
+        case DB_Base::INFORMIX:
+          $this->columns = @ifx_fetch_row($this->cur);
+          break;
+        case DB_Base::MSSQL:
+          $this->columns = @mssql_fetch_row($this->cur);
+          break;
+        case DB_Base::INTERBASE:
+          $this->columns = @ibase_fetch_row($this->cur);
+          break;
+        case DB_Base::SYBASE:
+          $this->columns = @sybase_fetch_row($this->cur);
+          break;
+      }
+    }
+    return $this->columns;
+  }
+
+  public function Column($_i)
+  {
+    switch($this->type)
+    {
+      case DB_Base::ORACLE:
+      case DB_Base::POSTGRES:
+      case DB_Base::MYSQL:
+      case DB_Base::MYSQLi:
+      case DB_Base::MSSQL:
+      case DB_Base::ODBC:
+      case DB_Base::INTERBASE:
+      case DB_Base::SYBASE:
+        return $this->columns[$_i];
+        break;
+      case DB_Base::INFORMIX:
+        reset($this->columns);
+        for ($i = 0; $i < $_i; $i ++)
+        {
+          next($this->columns);
+        }
+        return current($this->columns);
+        break;
+    }
+  }
+
+  public function Close()
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug('common/dominion/DB_Cursor->Close()', WADebug::SYSTEM);
+
+    if ($this->ODBC)
+    {
+      @odbc_free_result($this->cur);
+      $ret = true;
+    }
+    else
+    {
+      $ret = '';
+      switch($this->type)
+      {
+        case DB_Base::ORACLE:
+          $ret = @OCIFreeStatement($this->cur);
+          break;
+        case DB_Base::POSTGRES:
+          $ret = @pg_freeresult($this->cur);
+          break;
+        case DB_Base::MYSQL:
+          @mysql_free_result($this->cur);
+          $ret = true;
+          break;
+        case DB_Base::MYSQLi:
+          // free is not needed since we use query()
+          // $this->cur->free();
+          $ret = true;
+          break;
+        case DB_Base::INFORMIX:
+          $ret = @ifx_free_result($this->cur);
+          break;
+        case DB_Base::MSSQL:
+          $ret = @mssql_free_result($this->cur);
+          break;
+        case DB_Base::INTERBASE:
+          $ret = @ibase_free_result($this->cur);
+          break;
+        case DB_Base::SYBASE:
+          @sybase_free_result($this->cur);
+          $ret = true;
+          break;
+      }
+    }
+    $this->cur = null;
+    return $ret;
+  }
+
+  public function getQuery($sql, $Parameters = null)
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("common/dominion/DB_Cursor->getQuery( $sql, $Parameters )", WADebug::SYSTEM);
+
+    $this->Exec($sql, $Parameters);
+    while ($r = $this->Fetch())
+    {
+      $ar[] = $r;
+    }
+    $this->Close();
+    if (!isset($ar))
+      $ar = null;
+    return $ar;
+  }
+
+}
+
+?>

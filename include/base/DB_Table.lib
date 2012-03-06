@@ -1,0 +1,1095 @@
+<?php
+
+/*
+    DB_Table.lib, Dominion, the WebAbility(r) Database Abstraction Layer
+    Contains the class to manager tables of information
+    (c) 2008-2010 Philippe Thomassigny
+
+    This file is part of Dominion
+
+    Dominion is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Dominion is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Dominion.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
+/* @UML_Box -- Do not edit
+|------------------------------------------------------------------|
+| DB_Table: Table for database access                              |
+|------------------------------------------------------------------|
+|------------------------------------------------------------------|
+|------------------------------------------------------------------|
+@End_UML_Box */
+
+final class DB_Table extends WAClass
+{
+  const SYSCATALOG = 1;
+  const CATALOG = 2;
+  const TABLE = 3;
+  const LOG = 4;
+  const HISTORY = 5;
+  const HISTORYLOG = 6;
+
+  private $name = null;
+  private $id = null;
+  private $type = null;
+  private $fields = array();
+  private $records = array();
+  private $connector = null;
+  private $connectortype = null;
+  private $insertedkey = null;
+
+  function __construct($name, $id, $type)
+  {
+    parent::__construct();
+
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("include/base/DB_Table->__construct( $name, $id, $type )", WADebug::SYSTEM);
+
+    $this->name = $name;
+    $this->id = $id;
+    $this->type = $type;
+  }
+
+  public function getName()
+  {
+    return $this->name;
+  }
+
+  public function getId()
+  {
+    return $this->id;
+  }
+
+  public function getFields()
+  {
+    return $this->fields;
+  }
+
+  public function getConnector()
+  {
+    return $this->connector;
+  }
+
+  public function getConnectorType()
+  {
+    return $this->connectortype;
+  }
+
+  // Add a field to the table
+  public function addField(DB_Field $field)
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("include/base/DB_Table->addField( $field )", WADebug::SYSTEM);
+
+    $this->fields[$field->getName()] = $field;
+  }
+
+  public function setDB(DB_Base $conn)
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("include/base/DB_Table->setDB( $conn )", WADebug::SYSTEM);
+
+    $this->connector = $conn;
+    $this->connectortype = $conn->getType();
+  }
+
+  // ================================================
+  // functions for DML (Data Manipulation Language)
+  // ================================================
+
+  public function doInsert($record, $onlyquery=false)
+  {
+    $this->insertedkey = null;
+
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("include/base/DB_Table->doInsert( $record, $onlyquery)", WADebug::SYSTEM);
+
+    if ($record instanceof DB_Records)
+    {
+      $res = array();
+      foreach($record as $rec)
+        $res[] = $this->doInsert($rec, $onlyquery);
+      $this->insertedkey = $res;
+      return $this->insertedkey;
+    }
+    elseif ($record instanceof DB_SubQuery)
+    { // $record "must" be a subquery
+      $sql = "insert into ".$this->name." ".$record->getSubQuery();
+    }
+    elseif ($record instanceof DB_Record || is_array($record))
+    {
+      $tr = $record instanceof DB_Record;
+      $sqlf = "";
+      $sqlv = "";
+      $item = 0;
+
+      // we build the sql query in function of the database
+      foreach ($this->fields as $k => $f)
+      {
+        $fn = $f->getName();
+        if (($tr && isset($record->$fn)) || (!$tr && array_key_exists($f->getName(), $record)))
+        {
+          $v = $tr?$record->$fn:$record[$f->getName()];
+          if($this->connectortype == DB_Base::MSSQL && $f->isAutoIncrement() && !$v  )
+            continue;
+          if($this->connectortype == DB_Base::POSTGRES && $f->isAutoIncrement() && !$v )
+            continue;
+
+          $sqlf .= ($item?", ":"").$this->id.$f->getName();
+          $sqlv .= ($item?", ":"").$f->createValue($v, $this->name, $this->connectortype, $this->id);
+          $item++;
+        }
+        else
+        {
+          if ($f->isNotNull() || $f->isPrimaryKey())
+          {
+            throw new BadFieldValueException("Field <b>".$fn."</b> cannot be null");
+          }
+        }
+      }
+      $sql = "insert into ".$this->name." (".$sqlf .") values (". $sqlv .")";
+    }
+    else
+      throw new BadFieldValueException("Record set is not recognized");
+
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("-- include/base/DB_Table->doInsert() Constructed query: <b>$sql</b>", WADebug::INFO);
+
+    if ($onlyquery)
+    {
+      return array("Query" => $sql);
+    }
+
+    $cur = new DB_Cursor($this->connector);
+    $cur->Exec($sql); // can throw any error
+    $cur->Close();
+
+    // $tr is set to true if DB_Record
+    if (!($record instanceof DB_SubQuery))
+    {
+      $primkey = $this->getPrimaryKey();
+      if ($primkey)
+      {
+        $pn = $primkey->getName();
+        $pv = $tr?$record->$pn:$record[$pn];
+        if ($primkey->isAutoIncrement() && $pv == 0)
+        {
+          $queryprimkey = $this->getInsertedKey(true);
+          if ($queryprimkey)
+          {
+            $cur->Exec($queryprimkey["Query"]);
+            $key = $cur->Fetch();
+            $cur->Close();
+            $this->insertedkey = $key[0];
+          }
+          else
+            $this->insertedkey = $pv;
+        }
+        else
+          $this->insertedkey = $pv;
+      }
+    }
+    // release space
+    unset($cur);
+
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("-- include/base/DB_Table->doInsert() Inserted key = <b>".$this->insertedkey."</b>", WADebug::INFO);
+    return $this->insertedkey;
+  }
+
+  public function getInsertedKey($onlyquery=false)
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("include/base/DB_Table->getInsertedKey( $onlyquery )", WADebug::SYSTEM);
+
+    if ($onlyquery)
+    {
+      $primkey = $this->getPrimaryKey();
+      // If the prim key is autoincrement, we return the query
+      if($primkey)
+      {
+        if ($primkey->isAutoIncrement())
+        {
+          switch($this->connectortype)
+          {
+            case DB_Base::MYSQL:
+              return array("Query" => "select last_insert_id()");
+            case DB_Base::POSTGRES:
+              $name = $this->name."_".$this->id.$primkey->getName()."_seq";
+              if (strlen($name) > 63)
+                $name = substr($name, 0, 31) . substr($name, -32);
+              return array("Query" => "select currval('".$name."')");
+            case DB_Base::ORACLE:
+              return array("Query" => "select ".$this->name."_".$primkey->getName().".currval from dual");
+            case DB_Base::MSSQL:
+              return array("Query" => "select IDENT_CURRENT('".$this->name."')");
+          }
+        }
+      }
+      return null; // there is no prim key or query to return
+    }
+    return $this->insertedkey;
+  }
+
+  public function doUpdate($key, $record, $onlyquery=false)
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("include/base/DB_Table->doUpdate( $key, $record, $onlyquery)", WADebug::SYSTEM);
+
+    // we build the sql query in function of the database
+    $sqlf = "";
+    $item = 0;
+    foreach ($this->fields as $k => $f)
+    {
+      if (array_key_exists($f->getName(), $record))
+      {
+        $sqlf .= ($item?", ":"").$this->id.$f->getName() . " = " . $f->createValue($record[$f->getName()], $this->name, $this->connectortype, $this->id);
+        $item++;
+      }
+    }
+
+    $primkey = $this->getPrimaryKey();
+    $sql = "update ".$this->name." set ".$sqlf ." where " . $this->id.$primkey->getName() . " = " . $primkey->createValue($key, $this->name, $this->connectortype, $this->id);
+
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("-- include/base/DB_Table->doUpdate() Constructed query: <b>$sql</b>", WADebug::INFO);
+
+    if ($onlyquery)
+      return array("Query" => $sql);
+    $cur = new DB_Cursor($this->connector);
+    $ret = $cur->Exec($sql);
+    $cur->Close();
+
+    return $ret;
+  }
+
+  public function doUpdateCondition($where, $record, $onlyquery=false)
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("include/base/DB_Table->doUpdateCondition( $where, $record, $onlyquery)", WADebug::SYSTEM);
+
+    // we build the sql query in function of the database
+    $sqlf = "";
+
+    $item = 0;
+    foreach ($this->fields as $k => $f)
+    {
+      if (array_key_exists($f->getName(), $record))
+      {
+        $sqlf .= ($item?", ":"").$this->id.$f->getName() . " = " . $f->createValue($record[$f->getName()], $this->name, $this->connectortype, $this->id);
+        $item++;
+      }
+    }
+
+    $sql = "update ".$this->name." set ".$sqlf;
+
+    if (is_array($where))
+    {
+      $first = 1;
+      $item = 0;
+      foreach ($where as $k => $f)
+      {
+        if ($first)
+        {
+          $sql .= $f ? " where " . $f->getCondition($this->id, $this, $this->connectortype) : "";
+          $first = 0;
+        }
+        else
+        {
+          $sql .= ($item ? (" " . $f->getOpGlobal() ." ") : "");
+          $sql .= $f ? " " . $f->getCondition($this->id, $this, $this->connectortype) : "";
+        }
+        $item++;
+      }
+    }
+    else if($where instanceof DB_Condition)
+    {
+      $sql .= " where " . $where->getCondition($this->id, $this, $this->connectortype);
+    }
+
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("-- include/base/DB_Table->doUpdateCondition() Constructed query: <b>$sql</b>", WADebug::INFO);
+
+    if ($onlyquery)
+      return array("Query" => $sql);
+
+    $cur = new DB_Cursor($this->connector);
+    $ret = $cur->Exec($sql);
+    $cur->Close();
+
+    return $ret;
+  }
+
+  public function doDelete($key, $onlyquery=false)
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("include/base/DB_Table->doDelete( $key, $onlyquery)", WADebug::SYSTEM);
+
+    $primkey = $this->getPrimaryKey();
+    $in = false;
+    $int = '';
+    if (is_array($key))
+    {
+      $in = true;
+      foreach($key as $k)
+        $int .= ($int?',':'') . $primkey->createValue($k, $this->name, $this->connectortype, $this->id);
+      $int = '(' . $int . ')';
+    }
+
+    $sql = "delete from ".$this->name." where " . $this->id.$primkey->getName() . ($in?' in ' . $int:" = " . $primkey->createValue($key, $this->name, $this->connectortype, $this->id));
+
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("-- include/base/DB_Table->doDelete() Constructed query: <b>$sql</b>", WADebug::INFO);
+
+    if ($onlyquery)
+      return array("Query" => $sql);
+
+    $cur = new DB_Cursor($this->connector);
+    $ret = $cur->Exec($sql);
+    $cur->Close();
+  }
+
+  public function doDeleteCondition($where, $onlyquery=false)
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("include/base/DB_Table->doDeleteCondition( $where, $onlyquery)", WADebug::SYSTEM);
+
+    $sql = "";
+
+    if (is_array($where))
+    {
+      $sql = "delete from ".$this->name;
+      $first = 1;
+      $item = 0;
+      foreach ($where as $k => $f)
+      {
+        if ($first)
+        {
+          $sql .= $f ? " where " . $f->getCondition($this->id, $this, $this->connectortype) : "";
+          $first = 0;
+        }
+        else
+        {
+          $sql .= ($item ? (" " . $f->getOpGlobal() ." ") : "");
+          $sql .= $f ? " " . $f->getCondition($this->id, $this, $this->connectortype) : "";
+        }
+        $item++;
+      }
+    }
+    else if ($where instanceof DB_Condition)
+    {
+      $sql = "delete from ".$this->name . ($where ? " where " . $where->getCondition($this->id, $this, $this->connectortype):"");
+    }
+    else
+    {
+      $sql = "delete from ".$this->name;
+    }
+
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("-- include/base/DB_Table->doDeleteCondition() Constructed query: <b>$sql</b>", WADebug::INFO);
+
+    if ($onlyquery)
+      return array("Query" => $sql);
+
+    $cur = new DB_Cursor($this->connector);
+    $ret = $cur->Exec($sql);
+    $cur->Close();
+
+    return $ret;
+  }
+
+  public function doSelect($key, $onlyquery=false, $limit=null)
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("include/base/DB_Table->doSelect( $key, $onlyquery, $limit)", WADebug::SYSTEM);
+
+    // we build the sql query in function of the database
+
+    $sqlf = "";
+    $item = 0;
+    $fieldindex = array();
+    foreach ($this->fields as $k => $f)
+    {
+      $pre = ""; $post  = "";
+      if ($this->connectortype == DB_Base::MSSQL)
+      {
+        if ($f->getType() == DB_Field::DATE)
+        {
+          $sqlf .= ($item?", ":"").'CONVERT(varchar(10),'.$pre.$this->id.$f->getName().$post.',20) as '.$pre.$this->id.$f->getName().$post;
+        }
+        elseif ($f->getType() == DB_Field::DATETIME)
+        {
+          $sqlf .= ($item?", ":"").'CONVERT(varchar(20),'.$pre.$this->id.$f->getName().$post.',20) as '.$pre.$this->id.$f->getName().$post;
+        }
+        else
+          $sqlf .= ($item?", ":"").$pre.$this->id.$f->getName().$post;
+      }
+      else
+        $sqlf .= ($item?", ":"").$pre.$this->id.$f->getName().$post;
+
+      $fieldindex[$f->getName()] = $item;
+      $item++;
+    }
+
+    $primkey = $this->getPrimaryKey();
+    if (!$primkey)
+      throw new BadFieldValueException("DB_Table->doSelect() Primary key has not been found in table $this->name");
+
+    $in = false;
+    $int = '';
+    if (is_array($key))
+    {
+      $in = true;
+      foreach($key as $k)
+        $int .= ($int?',':'') . $primkey->createValue($k, $this->name, $this->connectortype, $this->id);
+      $int = '(' . $int . ')';
+    }
+
+    $sql = "select ";
+    if(is_numeric($limit) && $limit > -1 && $this->connectortype == DB_Base::MSSQL)
+      $sql .= "top $limit ";
+
+    $sql .= $sqlf ." from ".$this->name . " where " . $this->id . $primkey->getName() . ($in?' in ' . $int:" = " . $primkey->createValue($key, $this->name, $this->connectortype, $this->id));
+
+    // Check for limit results
+    if(is_numeric($limit) && $limit > -1 && $this->connectortype != DB_Base::MSSQL)
+      $sql = $sql . " limit $limit";
+
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("-- include/base/DB_Table->doSelect() Constructed query: <b>$sql</b>", WADebug::INFO);
+
+    if ($onlyquery)
+      return array("Query" => $sql, "FieldIndex" => $fieldindex);
+
+    $cur = new DB_Cursor($this->connector);
+    $cur->Exec($sql);
+    $result = array();
+    while ( ($res = $cur->Fetch() ) )
+      $result[] = $res;
+    $cur->Close();
+    if (sizeof($result) == 0)
+      return null;
+    if (sizeof($result) > 1)
+      $fresult = new DB_Records();
+    foreach($result as $res)
+    {
+      $fres = new DB_Record();
+      $item = 0;
+      foreach ($this->fields as $k => $f)
+      {
+        $name = $f->getName();
+        if ($f->getType() == DB_Field::DATE || $f->getType() == DB_Field::DATETIME)
+        {
+          if ($res[$item] === null)
+            $fres->$name = null;
+          else
+            $fres->$name = new DB_Date($res[$item]);
+          $item++;
+        }
+        else
+          $fres->$name = $res[$item++];
+      }
+      if (sizeof($result) == 1)
+        return $fres;
+      $fresult->push($fres);
+    }
+
+    return $fresult;
+  }
+
+  public function doSelectCondition($where, $order = null, $onlyquery=false, $limit=null, $offset=null, $idprepend = null)
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("include/base/DB_Table->doSelectCondition( $where, $order, $onlyquery, $limit, $offset)", WADebug::SYSTEM);
+
+    $sqlf = "";
+    $item = 0;
+
+    $fieldindex = array();
+    foreach ($this->fields as $k => $f)
+    {
+      $pre = ""; $post  = "";
+      if ($this->connectortype == DB_Base::MSSQL)
+      {
+        if ($f->getType() == DB_Field::DATE)
+        {
+          $sqlf .= ($item?", ":"").'CONVERT(varchar(10),'.$pre.$this->id.$f->getName().$post.',20) as '.$pre.$this->id.$f->getName().$post;
+        }
+        elseif ($f->getType() == DB_Field::DATETIME)
+        {
+          $sqlf .= ($item?", ":"").'CONVERT(varchar(20),'.$pre.$this->id.$f->getName().$post.',20) as '.$pre.$this->id.$f->getName().$post;
+        }
+        else
+          $sqlf .= ($item?", ":"").$pre.$this->id.$f->getName().$post;
+      }
+      else
+        $sqlf .= ($item?", ":"").$pre.$this->id.$f->getName().$post;
+
+      $fieldindex[$f->getName()] = $item;
+      $item++;
+    }
+
+    $sql = "select ";
+    if(is_numeric($limit) && $limit > -1 && $this->connectortype == DB_Base::MSSQL)
+      $sql .= "top $limit ";
+
+    $sql .= $sqlf ." from ".$this->name;
+
+    if (is_array($where))
+    {
+      $first = 1;
+      $item = 0;
+
+      foreach ($where as $k => $f)
+      {
+        if ($first)
+        {
+          $sql .= $f ? " where " . $f->getCondition($this->id, $this, $this->connectortype) : "";
+          $first = 0;
+        }
+        else
+        {
+          $sql .= ($item ? (" " . $f->getOpGlobal() ." ") : "");
+          $sql .= $f ? " " . $f->getCondition($this->id, $this, $this->connectortype) : "";
+        }
+        $item++;
+      }
+    }
+    elseif ($where instanceof DB_Condition)
+      $sql .= ($where ? " where " . $where->getCondition($this->id, $this, $this->connectortype):"");
+
+    if (is_array($order))
+    {
+      $item = 0;
+      $sql .= " order by ";
+      foreach ($order as $k => $f)
+      {
+        $sql .= ($item++?", ":"").($f ? $f->getOrderBy($this->id) : "");
+      }
+    }
+    elseif ($order instanceof DB_OrderBy)
+    {
+      $sql .= ($order ? " order by ".$order->getOrderBy($this->id) : "");
+    }
+
+    // Check for limit results
+    if(is_numeric($limit) && $limit > -1 && $this->connectortype != DB_Base::MSSQL)
+      $sql = $sql . " limit $limit";
+    if (is_numeric($offset) && $offset > -1 && ($this->connectortype == DB_Base::MYSQL || $this->connectortype == DB_Base::POSTGRES))
+    {
+      $sql = $sql . " offset $offset";
+    }
+
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("-- include/base/DB_Table->doSelectCondition() Constructed query: <b>$sql</b>", WADebug::INFO);
+
+    if ($onlyquery)
+      return array("Query" => $sql, "FieldIndex" => $fieldindex);
+
+    $cur = new DB_Cursor($this->connector);
+    $cur->Exec($sql);
+    $result = new DB_Records();
+    $numrec = 0;
+    while ($res = $cur->Fetch())
+    {
+      $fres = new DB_Record();
+      $item = 0;
+      foreach ($this->fields as $k => $f)
+      {
+        $name = $f->getName();
+        if($f->getType() == DB_Field::DATE || $f->getType() == DB_Field::DATETIME)
+        {
+          if ($res[$item] === null)
+            $fres->$name = null;
+          else
+            $fres->$name = new DB_Date($res[$item]);
+          $item++;
+        }
+        else
+          $fres->$name = $res[$item++];
+      }
+      $result->push($fres);
+      $numrec ++;
+    }
+    $cur->Close();
+    if ($numrec == 0)
+      return null;
+    return $result;
+  }
+
+  public function doSelectReport($calcfields, $where, $order = null, $onlyquery=false, $limit=null)
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("include/base/DB_Table->doSelectReport( $calcfields, $where, $order, $onlyquery, $limit)", WADebug::SYSTEM);
+
+    return $this->doSelectReportGroup($calcfields, $where, null, $order, $onlyquery, $limit);
+  }
+
+  public function doSelectReportGroup($calcfields, $where, $groupby, $order = null, $onlyquery=false, $limit=null)
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("include/base/DB_Table->doSelectReportGroup( $calcfields, $where, $groupby, $order, $onlyquery, $limit)", WADebug::SYSTEM);
+
+    $sqlf = "";
+    $item = 0;
+
+    foreach ($calcfields as $k => $f)
+    {
+      $sqlf .= ($item?", ":"").$f->createCalcField($this->id, $this->connectortype);
+      $item++;
+    }
+    $sql = "select ";
+    if(is_numeric($limit) && $limit > -1 && $this->connectortype == DB_Base::MSSQL)
+      $sql .= "top $limit ";
+
+    $sql .= $sqlf ." from ".$this->name;
+
+    if (is_array($where))
+    {
+      $first = 1;
+      $item = 0;
+
+      foreach ($where as $k => $f)
+      {
+        if ($first)
+        {
+          $sql .= $f ? " where " . $f->getCondition($this->id, $this, $this->connectortype) : "";
+          $first = 0;
+        }
+        else
+        {
+          $sql .= ($item ? (" " . $f->getOpGlobal() ." ") : "");
+          $sql .= $f ? " " . $f->getCondition($this->id, $this, $this->connectortype) : "";
+        }
+        $item++;
+      }
+    }
+    elseif ($where instanceof DB_Condition)
+      $sql .= ($where ? " where " . $where->getCondition($this->id, $this, $this->connectortype):"");
+
+    if ($groupby)
+    {
+      $sqlgb = " group by ";
+      $item = 0;
+      foreach($groupby as $g)
+      {
+        $sqlgb .= ($item++?", ":"").$this->id.$g;
+      }
+      $sql .= $sqlgb;
+    }
+
+    if (is_array($order))
+    {
+      $item = 0;
+      $sql .= " order by ";
+      foreach ($order as $k => $f)
+      {
+        $sql .= ($item++?", ":"").($f ? $f->getOrderBy($this->id) : "");
+      }
+    }
+    elseif ($order instanceof DB_OrderBy)
+    {
+      $sql .= ($order ? " order by ".$order->getOrderBy($this->id) : "");
+    }
+
+    // Check for limit results
+    if(is_numeric($limit) && $limit > -1 && $this->connectortype != DB_Base::MSSQL)
+      $sql = $sql . " limit $limit";
+
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("-- include/base/DB_Table->doSelectReportGroup() Constructed query: <b>$sql</b>", WADebug::INFO);
+
+    if ($onlyquery)
+      return array("Query" => $sql);
+
+    $cur = new DB_Cursor($this->connector);
+    $cur->Exec($sql);
+    $result = new DB_Records();
+    while ($res = $cur->Fetch())
+    {
+      $fres = new DB_Record();
+      $item = 0;
+      foreach ($calcfields as $k => $f)
+      {
+        $name = $f->getName();
+        if($f->getType() == DB_Field::DATE || $f->getType() == DB_Field::DATETIME)
+        {
+          if ($res[$item] === null)
+            $fres->$name = null;
+          else
+            $fres->$name = new DB_Date($res[$item]);
+          $item++;
+        }
+        else
+          $fres->$name = $res[$item++];
+      }
+      $result->push($fres);
+    }
+    $cur->Close();
+    return $result;
+  }
+
+  // get database field max value
+  public function getMaxValue($field, $where, $onlyquery=false)
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("include/base/DB_Table->getMaxValue( $field, $where, $onlyquery)", WADebug::SYSTEM);
+
+    $f = $this->getField($field);
+    if (!$f)
+      return null;
+
+    $sql = "select max(".$this->id.$field.") from ".$this->name;
+
+    if (is_array($where))
+    {
+      $first = 1;
+      $item = 0;
+      foreach ($where as $k => $cond)
+      {
+        if ($first)
+        {
+          $sql .= $cond ? " where " . $cond->getCondition($this->id, $this, $this->connectortype) : "";
+          $first = 0;
+        }
+        else
+        {
+          $sql .= ($item ? (" " . $cond->getOpGlobal() ." ") : "");
+          $sql .= $cond ? " " . $cond->getCondition($this->id, $this, $this->connectortype) : "";
+        }
+        $item++;
+      }
+    }
+    else
+      $sql .= ($where ? " where " . $where->getCondition($this->id, $this, $this->connectortype):"");
+
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("-- include/base/DB_Table->getMaxValue() Constructed query: <b>$sql</b>", WADebug::INFO);
+
+    if ($onlyquery)
+      return array("Query" => $sql);
+    $cur = new DB_Cursor($this->connector);
+    $res = $cur->Exec($sql);
+    $res = $cur->Fetch();
+    $cur->Close();
+    // If the field is a data and it is absolute, we have to send an object
+
+
+    if ($f->getType() == DB_Field::DATE || $f->getType() == DB_Field::DATETIME)
+    {
+      if ($res[0] !== null) // && $f->isAbsoluteDate())
+      {
+        $thedate = new DB_Date($res[0]);
+        return $thedate;
+      }
+    }
+    return $res[0];
+  }
+
+  // get count
+  public function getNumberOfRecords($where, $onlyquery=false)
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("include/base/DB_Table->getNumberOfRecords( $where, $onlyquery)", WADebug::SYSTEM);
+
+    $sql = "select count(*) from ".$this->name;
+
+    if (is_array($where))
+    {
+      $first = 1;
+      $item = 0;
+      foreach ($where as $k => $f)
+      {
+        if ($first)
+        {
+          $sql .= $f ? " where " . $f->getCondition($this->id, $this, $this->connectortype) : "";
+          $first = 0;
+        }
+        else
+        {
+          $sql .= ($item ? (" " . $f->getOpGlobal() ." ") : "");
+          $sql .= $f ? " " . $f->getCondition($this->id, $this, $this->connectortype) : "";
+        }
+        $item++;
+      }
+    }
+    else
+      $sql .= ($where ? " where " . $where->getCondition($this->id, $this, $this->connectortype):"");
+
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("-- include/base/DB_Table->getNumberOfRecords() Constructed query: <b>$sql</b>", WADebug::INFO);
+
+    if ($onlyquery)
+      return array("Query" => $sql);
+    $cur = new DB_Cursor($this->connector);
+    $res = $cur->Exec($sql);
+    $res = $cur->Fetch();
+    $cur->Close();
+    return $res[0];
+  }
+
+  public function getPrimaryKey()
+  {
+    $item = 0;
+    foreach ($this->fields as $k => $f)
+    {
+      if ($f->isPrimaryKey())
+        return $f;
+    }
+    return null;
+  }
+
+  public function getField($name)
+  {
+    $item = 0;
+    foreach ($this->fields as $k => $f)
+    {
+      if ($f->getName() == $name)
+        return $f;
+    }
+    return null;
+  }
+
+  // ================================================
+  // special functions for record ordering fields
+  // ================================================
+  public function Add($field, $limInf, $limSup, $addOrSub)
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("include/base/DB_Table->Add( $field, $limInf, $limSup, $addOrSub)", WADebug::SYSTEM);
+
+    if($addOrSub == 0)
+    {
+      $sql = "update " . $this->name." set ". $this->id.$field . " = ". $this->id.$field ." + 1 where " . $this->id.$field . " between $limSup and ". ($limInf-1);
+    }
+    else if($addOrSub == 1)
+    {
+      $sql = "update ".$this->name." set ".$this->id.$field." = ".$this->id.$field ." - 1 where ".$this->id.$field." between ".($limInf+1)." and $limSup";
+    }
+
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("-- include/base/DB_Table->Add() Constructed query <b>$sql</b>", WADebug::INFO);
+
+    $cur = new DB_Cursor($this->connector);
+    $ret = $cur->Exec($sql);
+    $cur->Close();
+
+    return $ret;
+  }
+
+
+  // ================================================
+  // functions for SML (Structure Manipulation Language)
+  // ================================================
+
+  public function tableExists()
+  {
+    switch($this->connectortype)
+    {
+      case DB_Base::MSSQL:
+        $sql = "select name from sysobjects where name = '".strtolower($this->name)."' and xtype='U' and type = 'U'";
+        $cur = new DB_Cursor($this->connector);
+        $cur->Exec($sql);
+        $res = $cur->Fetch();
+        $cur->Close();
+        if ($res)
+          return true;
+        return false;
+        break;
+      case DB_Base::MYSQL:
+        try
+        {
+          $sql = "describe ".$this->name;
+          $cur = new DB_Cursor($this->connector);
+          $res = $cur->Exec($sql);
+          $cur->Close();
+          if ($res)
+            return true;
+        }
+        catch (DB_CursorException $e)
+        {
+          return false;
+        }
+        return false;
+        break;
+      case DB_Base::POSTGRES:
+        $sql = "select tablename from pg_tables where tablename = '".strtolower($this->name)."' and tableowner = '".$this->connector->getUserName()."'";
+        $cur = new DB_Cursor($this->connector);
+        $cur->Exec($sql);
+        $res = $cur->Fetch();
+        $cur->Close();
+        if ($res)
+          return true;
+        return false;
+        break;
+      case DB_Base::ORACLE:
+        $sql = "select table_name from dba_tables where table_name = '".strtoupper($this->name)."' and owner = '".strtoupper($this->connector->getUserName())."'";
+        $cur = new DB_Cursor($this->connector);
+        $cur->Exec($sql);
+        $res = $cur->Fetch();
+        $cur->Close();
+
+      // *********** IT SEEMS THIS BLOCK ALWAYS GETS A RECORD ?!?! *****************
+
+        if ($res)
+          return true;
+        return false;
+      break;
+    }
+    return false;
+  }
+
+  public function createTable()
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("include/base/DB_Table->createTable()", WADebug::SYSTEM);
+
+    // parse the array descriptor to create the SQL sentence
+    $sql = "create table ".$this->name." ( ";
+    $item = 0;
+    // the ifText variable is needed for Oracle: only one long into the table
+    // The variable is passed by reference and is set by the CreateField function.
+    $ifText = false;
+
+    foreach ($this->fields as $k => $f)
+    {
+      $sql .= ($item++>0?", ":"").$f->CreateField($this->id, $this->connectortype, $ifText);
+    }
+    $sql .= " )";
+
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("-- include/base/DB_Table->createTable() Constructed query: <b>$sql</b>", WADebug::INFO);
+
+    $cur = new DB_Cursor($this->connector);
+    $res = $cur->Exec($sql);
+    $cur->Close();
+
+    // If oracle, we create the sequences
+    if ($this->connectortype == DB_Base::ORACLE)
+    {
+      foreach ($this->fields as $k => $f)
+      {
+        $sql = $f->CreateSequence($this->name);
+        if ($sql != null)
+        {
+          if (self::$debug || $this->localdebug)
+            $this->doDebug("-- include/base/DB_Table->createTable() Sequence constructed query: <b>$sql</b>", WADebug::INFO);
+          $res = $cur->Exec($sql);
+          $cur->Close();
+        }
+      }
+    }
+
+    // Then we create the indexes
+    foreach ($this->fields as $k => $f)
+    {
+      $sql = $f->CreateIndex($this->name, $this->id, $this->connectortype);
+      if ($sql != null)
+      {
+        foreach($sql as $isql)
+        {
+          if (self::$debug || $this->localdebug)
+            $this->doDebug("-- include/base/DB_Table->createTable() Index constructed query: <b>$isql</b>", WADebug::INFO);
+          $res = $cur->Exec($isql);
+          $cur->Close();
+        }
+      }
+    }
+
+  }
+
+  public function deleteTable()
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("include/base/DB_Table->deleteTable()", WADebug::SYSTEM);
+
+    // parse the array descriptor to create the SQL sentence
+    $sql = "drop table ".$this->name;
+    switch($this->connectortype)
+    {
+      case DB_Base::MYSQL:
+      case DB_Base::MSSQL:
+        break;
+      case DB_Base::POSTGRES:
+        $sql .= " cascade";
+        break;
+      case DB_Base::ORACLE:
+        $sql .= " cascade";
+        break;
+    }
+
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("-- include/base/DB_Table->deleteTable() Constructed query: <b>$sql</b>", WADebug::INFO);
+
+    $cur = new DB_Cursor($this->connector);
+    $res = $cur->Exec($sql);
+    $cur->Close();
+
+    if ($this->connectortype == DB_Base::ORACLE)
+    { // We check for the possible sequences
+      foreach ($this->fields as $k => $f)
+      {
+        if ($f->isAutoIncrement())
+        {
+          $sql = "drop sequence ".$this->name."_".$f->getName();
+          if (self::$debug || $this->localdebug)
+            $this->doDebug("-- include/base/DB_Table->deleteTable() Sequence constructed query: <b>$sql</b>", WADebug::INFO);
+          $res = $cur->Exec($sql);
+          $cur->Close();
+        }
+      }
+    }
+  }
+
+  // Synchronize the definition of the table with the database
+  // return: false = all ok
+  public function synchronize($preserve = true)
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("include/base/DB_Table->synchronize( $preserve )", WADebug::SYSTEM);
+
+    // 1rst test: check if the table exists.
+    if (!$this->tableExists())
+    {
+      // create the table
+      $this->createTable();
+    }
+    else
+    {
+      // for the moment we delete then create....
+      // IN THE FUTURE: WE CHECK ALL FIELD AND PROPERTIES AND ADAPT WITHOUT DATA LOSS
+      if (!$preserve)
+        $this->deleteTable();
+      // create the table
+      $this->createTable();
+    }
+  }
+
+  protected function serial(&$data)
+  {
+    $data['name'] = $this->name;
+    $data['id'] = $this->id;
+    $data['type'] = $this->type;
+    $data['fields'] = $this->fields;
+  }
+
+  protected function unserial($data)
+  {
+    $this->name = $data['name'];
+    $this->id = $data['id'];
+    $this->type = $data['type'];
+    $this->fields = $data['fields'];
+  }
+
+}
+
+?>

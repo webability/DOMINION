@@ -1,0 +1,145 @@
+<?php
+
+/*
+    DB_FieldDateTime.lib, Dominion, the WebAbility(r) Database Abstraction Layer
+    Contains the class to manage timestamp fields
+    (c) 2008-2010 Philippe Thomassigny
+
+    This file is part of Dominion
+
+    Dominion is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Dominion is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Dominion.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
+/* @UML_Box -- Do not edit
+|------------------------------------------------------------------|
+| DB_FieldDateTime:                                                |
+|------------------------------------------------------------------|
+|------------------------------------------------------------------|
+|------------------------------------------------------------------|
+@End_UML_Box */
+
+class DB_FieldDateTime extends DB_Field
+{
+  private $types = array(
+    DB_Base::MYSQL => array(
+      DB_Field::DATETIME => "datetime",
+      "sysdate" => "sysdate()"
+    ),
+    DB_Base::POSTGRES => array(
+      DB_Field::DATETIME => "timestamp",
+      "sysdate" => "now()",
+    ),
+    DB_Base::MSSQL => array(
+      DB_Field::DATETIME => "datetime",
+      "sysdate" => "getdate()"
+    ),
+    DB_Base::ORACLE => array(
+      DB_Field::DATETIME => "date",
+      "sysdate" => "sysdate"
+    )
+  );
+
+  function __construct($name, $checks = null)
+  {
+    parent::__construct($name, DB_Field::DATETIME, null, $checks);
+
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("common/dominion/DB_FieldDateTime->__construct( $name, $checks )", WADebug::SYSTEM);
+  }
+
+  public function createField($id, $DB, &$ifText)
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("common/dominion/DB_FieldDateTime->createField( $id, $DB, $ifText )", WADebug::SYSTEM);
+
+    $line = $id . $this->name . " " . $this->types[$DB][$this->type];
+
+    if ($this->checks != null)
+      $line .= $this->checks->createCheck($id.$this->name, $DB);
+    else
+    {
+      if ($DB == DB_Base::MSSQL)
+      {
+        $line .= " NULL";
+      }
+    }
+
+    return $line;
+  }
+
+  // This function is used by the doInsert and doUpdate functions, to create the values to insert/update
+  public function createValue($v, $table, $DB, $id)
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("common/dominion/DB_FieldDateTime->createValue( $v, $table, $DB, $id )", WADebug::SYSTEM);
+
+    if ($v === null)
+      return "NULL";
+    else
+    {
+      if (!is_object($v) && $v == "sysdate")
+        return $this->types[$DB]["sysdate"];
+      else
+      {
+        if ($v)
+        {
+          switch((int)$DB)
+          {
+            case DB_Base::MYSQL:
+              if ($v instanceof DB_Date)
+                return "'".$v->getDateFormat("Y-m-d H:i:s")."'";
+              if (is_integer($v) || (is_string($v) && ctype_digit($v)))
+                return "from_unixtime($v)";
+              return "'".$v."'";
+            case DB_Base::POSTGRES:
+              if ($v instanceof DB_Date)
+                return "'".$v->getDateFormat("Y-m-d H:i:s")."'";
+              if (is_integer($v) || (is_string($v) && ctype_digit($v)))
+                return "'".date("Y-m-d H:i:s", $v)."'";
+              return "'".$v."'";
+            case DB_Base::MSSQL:
+              if ($v instanceof DB_Date)
+                return "'".$v->getDateFormat("Y-m-d H:i:s")."'";
+              if (is_numeric($v))
+                return "'".date("Y-m-d H:i:s", $v)."'";
+              return "'".$v."'";
+            case DB_Base::ORACLE:
+              if ($v instanceof DB_Date)
+                return "to_date('".$v->getDateFormat("Y-m-d H:i:s")."', 'YYYY-MM-DD HH24:MI:SS')";
+              if (is_integer($v) || (is_string($v) && ctype_digit($v)))
+                return "to_date('".date("Y-m-d H:i:s", $v)."', 'YYYY-MM-DD HH24:MI:SS')";
+              return "to_date('".$v."', 'YYYY-MM-DD HH24:MI:SS')";
+          }
+        }
+        else
+          return "NULL";
+      }
+    }
+    return $v;
+  }
+
+  protected function serial(&$data)
+  {
+    parent::serial($data);
+  }
+
+  protected function unserial($data)
+  {
+    parent::unserial($data);
+  }
+
+}
+
+
+?>

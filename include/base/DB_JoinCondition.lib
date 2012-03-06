@@ -1,0 +1,83 @@
+<?php
+
+/*
+    DB_JoinCondition.lib, Dominion, the WebAbility(r) Database Abstraction Layer
+    Contains the class to manage condition on joint queries of information
+    (c) 2008-2010 Philippe Thomassigny
+
+    This file is part of Dominion
+
+    Dominion is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Dominion is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Dominion.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
+/* @UML_Box -- Do not edit
+|------------------------------------------------------------------|
+| DB_JoinCondition: Database connector object                               |
+|------------------------------------------------------------------|
+|------------------------------------------------------------------|
+|------------------------------------------------------------------|
+@End_UML_Box */
+
+// =====================================================
+// Object DB_JoinCondition
+// Contructor: DB_JoinCondition($field, $op, $limit);
+// =====================================================
+
+final class DB_JoinCondition extends WADebug
+{
+  private $syn = null;
+  private $field = null;
+  private $op = null;
+  private $synout = null;
+  private $fieldout = null;
+  private $opglobal = null;
+  private $jointype = null;
+
+  function __construct($syn, $field, $op, $synout, $fieldout, $jointype, $opglobal = null)
+  {
+    parent::__construct();
+    $this->syn = $syn;
+    $this->field = $field;
+    $this->op = $op;
+    $this->synout = $synout;
+    $this->fieldout = $fieldout;
+    $this->opglobal = $opglobal;
+    $this->jointype = $jointype;
+  }
+
+  public function getCondition($tables)
+  {
+    $cond = "";
+    if($this->op == "=")
+    {
+      $f = $tables[$this->syn]->getField($this->field);
+      if (!$f)
+        throw new BadFieldError("Field <b>".$this->field."</b> does not exist into the table definition of <b>".$tables[$this->syn]->name."</b>.");
+      $fout = $tables[$this->synout]->getField($this->fieldout);
+      if (!$fout)
+        throw new BadFieldError("Field <b>".$this->fieldout."</b> does not exist into the table definition of <b>".$tables[$this->syn]->getName()."</b>.");
+
+      $cond = $this->syn.".".$tables[$this->syn]->getId().$f->getName()." = ".$this->synout.".".$tables[$this->synout]->getId().$fout->getName();
+    }
+    return $cond;
+  }
+
+  public function getOpGlobal()
+  {
+    return $this->opglobal;
+  }
+}
+
+
+?>

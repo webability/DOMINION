@@ -1,0 +1,695 @@
+<?php
+
+/*
+    DB_Base.lib, Dominion, the WebAbility(r) Database Abstraction Layer
+    Contains the class to physically connect to the database
+    (c) 2008-2010 Philippe Thomassigny
+
+    This file is part of Dominion
+
+    Dominion is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Dominion is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Dominion.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
+/* @UML_Box -- Do not edit
+|------------------------------------------------------------------|
+| DB_Base: Database connector object                               |
+|------------------------------------------------------------------|
+| ! VERSION : string                                               |
+| ! ORACLE : 1                                                     |
+| ! POSTGRES : 2                                                   |
+| ! MSSQL : 3                                                      |
+| ! MYSQL : 4                                                      |
+| ! MYSQLi : 9                                                     |
+| ! INFORMIX : 5                                                   |
+| ! INTERBASE : 6                                                  |
+| ! SYBASE : 7                                                     |
+| ! DB2 : 8                                                        |
+| ! SQLITE : 10                                                    |
+| ! IFODBC : 1                                                     |
+| ! IFPERSISTENT : 2                                               |
+| ! IFPDO : 4                                                      |
+| - ::messages : array(string => string)                           |
+| - type : integer                                                 |
+| - id : PHP Database object connector                             |
+| - ifPersistent : integer                                         |
+| - ifODBC : integer                                               |
+| - ifPDO : integer                                                |
+| - commitMethod : PHP Database specific Flag (integer)            |
+| - base : string                                                  |
+| - username : string                                              |
+| - password : string                                              |
+| - extra : string                                                 |
+|------------------------------------------------------------------|
+| + new DB_Base($type: integer, $flags: integer)                   |
+| - parseFlags($flags: integer)                                    |
+| + getType() : integer                                            |
+| + getODBC() : integer                                            |
+| + getPersistent() : integer                                      |
+| + getId() : PHP Database object connector                        |
+| + getDatabaseName() : string                                     |
+| + getUserName() : string                                         |
+| + selectDB()                                                     |
+| + setLogon($UN: string, $PW: string, $DB: string, $Extra: string)|
+| + doLogon($UN: string, $PW: string, $DB: string, $Extra: string) |
+| + checkLogon()                                                   |
+| + useID($id: PHP Database object connector, $flags: integer)     |
+| + logOff($destructing: boolean)                                  |
+| + beginTransaction()                                             |
+| + doCommit()                                                     |
+| + doRollback()                                                   |
+|------------------------------------------------------------------|
+@End_UML_Box */
+
+final class DB_Base extends WAObject
+{
+  const VERSION = '8.00.05';
+
+  const ORACLE    = 1;
+  const POSTGRES  = 2;
+  const MSSQL     = 3;
+  const MYSQL     = 4;
+  const INFORMIX  = 5;
+  const INTERBASE = 6;
+  const SYBASE    = 7;
+  const DB2       = 8;
+  const MYSQLi    = 9;
+  const SQLITE    = 10;
+
+  const IFODBC = 1;        // 1 >> 0
+  const IFPERSISTENT = 2;  // 1 >> 1
+  const IFPDO = 4;         // 1 >> 2
+
+  private static $init = false;
+  private static $messages = array(
+    'DB_Base.nodatabase' => 'The database does not exist: ',
+    'DB_Base.module' => 'The module is not loaded: ',
+    'DB_Base.connect' => 'Error connecting to: ',
+    'DB_Base.pconnect' => 'Error connecting to: ',
+    'DB_Base.select' => 'Error selecting the database of: ',
+    'DB_Base.used' => 'This Connector is already connected to a database.'
+  );
+
+  private $EXT_PDO = array(1 => 'pdo_oci', 2 => 'pdo_pgsql', 3 => 'pdo_dblib', 4 => 'pdo_mysql', 5 => 'pdo_informix', 6 => 'pdo_firebird', 7 => 'pdo_dblib', 8 => 'pdo_ibm', 9 => 'pdo_mysql', 10 => 'pdo_sqlite');
+  private $EXT = array(1 => 'oci8', 2 => 'pgsql', 3 => 'mssql', 4 => 'mysql', 5 => 'informix', 6 => 'interbase', 7 => 'sybase', 8 => 'db2', 9 => 'mysqli', 10 => 'SQLite');
+
+  private $type = null;
+  private $id = null;
+
+  private $ifPersistent = 0;
+  private $ifODBC = 0;
+  private $ifPDO = 0;
+
+  private $commitMethod = null;
+
+  private $database = null;
+  private $username = null;
+  private $password = null;
+  private $extra = null;
+
+  public function __construct($type = DB_Base::POSTGRES, $flags = 0)
+  {
+    if (!self::$init)
+    {
+      // send messages to WAMessage
+      WAMessage::addMessages(self::$messages);
+      self::$init = true;
+    }
+
+    parent::__construct();
+
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("common/dominion/DB_Base->__construct( $type, $flags )", WADebug::SYSTEM);
+
+    $this->type = $type;
+    $this->parseFlags($flags);
+
+    if ($this->ifPDO)
+    {
+      if (!extension_loaded('PDO'))
+        throw new DB_BaseError(WAMessage::getMessage('DB_Base.module') . 'PDO');
+
+      if (!$this->ifODBC)
+      {
+        if (!isset($this->EXT_PDO[$type]))
+          throw new DB_BaseError(WAMessage::getMessage('DB_Base.nodatabase') . $type);
+        if (!extension_loaded($this->EXT_PDO[$type]))
+          throw new DB_BaseError(WAMessage::getMessage('DB_Base.module') . $this->EXT_PDO[$type]);
+      }
+      else
+      {
+        if (!extension_loaded('PDO_ODBC'))
+          throw new DB_BaseError(WAMessage::getMessage('DB_Base.module') . 'PDO_ODBC');
+      }
+    }
+    else if (!$this->ifODBC)
+    {
+      if (!isset($this->EXT[$type]))
+        throw new DB_BaseError(WAMessage::getMessage('DB_Base.nodatabase') . $type);
+      if (!extension_loaded($this->EXT[$type]))
+        throw new DB_BaseError(WAMessage::getMessage('DB_Base.module') . $this->EXT[$type]);
+    }
+    else
+    {
+      if (!extension_loaded('odbc'))
+        throw new DB_BaseError(WAMessage::getMessage('DB_Base.module') . 'odbc');
+    }
+  }
+
+  public function __destruct()
+  {
+    $this->logOff(true);
+  }
+
+  private function parseFlags($flags)
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("common/dominion/DB_Base->parseFlags( $flags )", WADebug::SYSTEM);
+
+    $this->ifPersistent = $flags & DB_Base::IFPERSISTENT;
+    $this->ifODBC = $flags & DB_Base::IFODBC;
+    $this->ifPDO = $flags & DB_Base::IFPDO;
+
+    return $this;
+  }
+
+  public function getType()
+  {
+    return $this->type;
+  }
+
+  public function getODBC()
+  {
+    return $this->ifODBC;
+  }
+
+  public function getPersistent()
+  {
+    return $this->ifPersistent;
+  }
+
+  public function getPDO()
+  {
+    return $this->ifPDO;
+  }
+
+  public function getId()
+  {
+    return $this->id;
+  }
+
+  public function getDatabaseName()
+  {
+    return $this->database;
+  }
+
+  public function getUserName()
+  {
+    return $this->username;
+  }
+
+  public function getCommitMethod()
+  {
+    return $this->commitMethod;
+  }
+
+  public function selectDB()
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug('common/dominion/DB_Base->selectDB()', WADebug::SYSTEM);
+
+    if ($this->type == DB_Base::MYSQL)
+      mysql_select_db($this->database, $this->id);
+    if ($this->type == DB_Base::MYSQLi)
+      mysqli_select_db($this->database, $this->id);
+
+    return $this;
+  }
+
+  public function setLogon($UN, $PW = "", $DB = "", $Extra = null)
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("common/dominion/DB_Base->setLogon( $UN, $PW, $DB, $Extra )", WADebug::SYSTEM);
+
+    $this->database = $DB;
+    $this->username = $UN;
+    $this->password = $PW;
+    $this->extra = $Extra;
+
+    return $this;
+  }
+
+  public function doLogon($UN, $PW = "", $DB = "", $Extra = null)
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("common/dominion/DB_Base->doLogon( $UN, $PW, $DB, $Extra )", WADebug::SYSTEM);
+
+    $this->database = $DB;
+    $this->username = $UN;
+    $this->password = $PW;
+    $this->extra = $Extra;
+
+    if ($this->ifPDO)
+    {
+      if (!$this->ifODBC)
+      {
+        // creates the unique PDO connection string
+        switch($this->type)
+        {
+          case DB_Base::ORACLE:
+            $conx = 'oci:dbname='.$DB.($Extra?' '.$Extra:'');
+            break;
+          case DB_Base::POSTGRES:
+            $conx = 'pgsql:dbname='.$DB;
+            if ($Extra)
+              $conx .=' '.$Extra;
+            else
+              $conx .=' host=localhost';
+            break;
+          case DB_Base::MYSQL:
+          case DB_Base::MYSQLi:
+            $conx = 'mysql:dbname='.$DB;
+            if ($Extra)
+              $conx .=';'.$Extra;
+            else
+              $conx .=';host=localhost';
+            break;
+          case DB_Base::INFORMIX:
+            $conx = 'dblib:dbname='.$DB.($Extra?' '.$Extra:'');
+            break;
+          case DB_Base::MSSQL:
+            $conx = 'dblib:dbname='.$DB;
+            if ($Extra)
+              $conx .=';'.$Extra;
+            else
+              $conx .=';host=localhost';
+            break;
+          case DB_Base::INTERBASE:
+            $conx = 'firebird:dbname=localhost:'.$DB.($Extra?' '.$Extra:'');
+            break;
+          case DB_Base::SYBASE:
+            $conx = 'dblib:dbname='.$DB;
+            if ($Extra)
+              $conx .=';'.$Extra;
+            else
+              $conx .=';host=localhost';
+            break;
+          case DB_Base::DB2:
+            $conx = 'db2:dbname='.$DB.($Extra?' '.$Extra:'');
+            break;
+          case DB_Base::SQLITE:
+            $conx = 'sqlite:dbname='.$DB.($Extra?' '.$Extra:'');
+            break;
+        }
+      }
+      elseif ($this->ifODBC)
+        $conx = 'odbc:'.$DB.($Extra?' '.$Extra:'');
+      try
+      {
+        $this->id = new PDO($conx, $UN, $PW, ($this->ifPersistent?array(PDO::ATTR_PERSISTENT => true):null));
+      }
+      catch (PDOException $e)
+      {
+        throw new DB_ConnectionError(WAMessage::getMessage('DB_Base.connect') . ' PDO: '.$e->getMessage());
+      }
+    }
+    else
+    {
+      if($this->ifPersistent)
+      {
+        if ($this->ifODBC)
+        {
+          $this->id = @odbc_pconnect($DB, $UN, $PW);
+          if (!$this->id)
+            throw new DB_ConnectionError(WAMessage::getMessage('DB_Base.pconnect') . ' ODBC: '.odbc_error().': '.odbc_errormsg());
+        }
+        else
+        {
+          switch($this->type)
+          {
+            case DB_Base::ORACLE:
+              $this->id = @OCIpLogon($UN, $PW, $DB);
+              if (!$this->id)
+              {
+                $error = OCIError();
+                throw new DB_ConnectionError(WAMessage::getMessage('DB_Base.pconnect') . ' ORACLE: '.$error['code'].': '.$error['message']);
+              }
+              $this->commitMethod = OCI_COMMIT_ON_SUCCESS;
+              break;
+            case DB_Base::POSTGRES:
+              $conx = "dbname=$DB user=$UN password=$PW";
+              $this->id = @pg_pconnect($conx);
+              if (!$this->id)
+                throw new DB_ConnectionError(WAMessage::getMessage('DB_Base.pconnect') . ' POSTGRESQL: '.pg_last_error());
+              break;
+            case DB_Base::MYSQL:
+              $this->id = @mysql_pconnect('localhost', $UN, $PW);
+              if (!$this->id)
+                throw new DB_ConnectionError(WAMessage::getMessage('DB_Base.pconnect') . ' MYSQL: '.mysql_errno().': '.mysql_error());
+              if (!mysql_select_db($DB, $this->id))
+              {
+                $errno = mysql_errno();
+                $errtxt = mysql_error();
+                mysql_close($this->id);
+                $this->id = null;
+                throw new DB_ConnectionError(WAMessage::getMessage('DB_Base.select') . $DB . ': '.$errno.': '.$errtxt);
+              }
+              break;
+            case DB_Base::MYSQLi:
+              $this->id = @mysqli_connect('localhost', $UN, $PW, $DB);
+              if (!$this->id)
+                throw new DB_ConnectionError(WAMessage::getMessage('DB_Base.pconnect') . ' MYSQLi: '.mysqli_connect_errno().': '.mysqli_connect_error());
+              $this->id->autocommit(true);
+              break;
+            case DB_Base::INFORMIX:
+              $this->id = @ifx_pconnect($DB, $UN, $PW);
+              if (!$this->id)
+                throw new DB_ConnectionError(WAMessage::getMessage('DB_Base.pconnect') . ' INFORMIX: '.ifx_error().': '.ifx_errormsg());
+              break;
+            case DB_Base::MSSQL:
+              $this->id = @mssql_pconnect($DB, $UN, $PW);
+              if (!$this->id)
+                throw new DB_ConnectionError(WAMessage::getMessage('DB_Base.pconnect') . ' MSSQL: '.mssql_get_last_message());
+              if (!mssql_select_db($DB, $this->id))
+              {
+                $errtxt = mssql_get_last_message();
+                mssql_close($this->id);
+                $this->id = null;
+                throw new DB_ConnectionError(WAMessage::getMessage('DB_Base.select') . $DB . ': '.$errtxt);
+              }
+              break;
+            case DB_Base::INTERBASE:
+              $this->id = @ibase_pconnect($DB, $UN, $PW);
+              if (!$this->id)
+                throw new DB_ConnectionError(WAMessage::getMessage('DB_Base.pconnect') . ' INTERBASE '.ibase_errcode().': '.ibase_errmsg());
+              break;
+            case DB_Base::SQLITE:
+              $this->id = @sqlite_open($DB, 0666, $sqliteerror);
+              if (!$this->id)
+                throw new DB_ConnectionError(WAMessage::getMessage('DB_Base.pconnect') . ' SQLITE '.$sqliteerror);
+              break;
+            case DB_Base::SYBASE:
+              $this->id = @sybase_pconnect('localhost', $UN, $PW);
+              if (!$this->id)
+                throw new DB_ConnectionError(WAMessage::getMessage('DB_Base.pconnect') . ' SYBASE: '.sybase_get_last_message());
+              if (!sybase_select_db($DB, $this->id))
+              {
+                $errtxt = sybase_get_last_message();
+                sybase_close($this->id);
+                $this->id = null;
+                throw new DB_ConnectionError(WAMessage::getMessage('DB_Base.select') . $DB . ': '.$errtxt);
+              }
+              break;
+          }
+        }
+      }
+      else
+      {
+        if ($this->ifODBC)
+        {
+          $this->id = @odbc_connect($DB.$Extra, $UN, $PW);
+          if (!$this->id)
+            throw new DB_ConnectionError(WAMessage::getMessage('DB_Base.connect') . ' ODBC: '.odbc_error().': '.odbc_errormsg());
+        }
+        else
+        {
+          switch($this->type)
+          {
+            case DB_Base::ORACLE:
+              $this->id = @OCILogon($UN, $PW, $DB);
+              if (!$this->id)
+              {
+                $error = OCIError();
+                throw new DB_ConnectionError(WAMessage::getMessage('DB_Base.connect') . ' ORACLE: '.$error['code'].': '.$error['message']);
+              }
+              $this->commitMethod = OCI_COMMIT_ON_SUCCESS;
+              break;
+            case DB_Base::POSTGRES:
+              $conx = "dbname=$DB user=$UN password=$PW".$Extra;
+              $this->id = @pg_connect($conx);
+              if (!$this->id)
+                throw new DB_ConnectionError(WAMessage::getMessage('DB_Base.connect') . ' POSTGRESQL: '.pg_last_error());
+              break;
+            case DB_Base::MYSQL:
+              $this->id = @mysql_connect('localhost'.$Extra, $UN, $PW);
+              if (!$this->id)
+                throw new DB_ConnectionError(WAMessage::getMessage('DB_Base.connect') . ' MYSQL: '.mysql_errno().': '.mysql_error());
+              if (!mysql_select_db($DB, $this->id))
+              {
+                $errno = mysql_errno();
+                $errtxt = mysql_error();
+                mysql_close($this->id);
+                $this->id = null;
+                throw new DB_ConnectionError(WAMessage::getMessage('DB_Base.select') . $DB . ': '.$errno.': '.$errtxt);
+              }
+              break;
+            case DB_Base::MYSQLi:
+              $this->id = @mysqli_connect('localhost'.$Extra, $UN, $PW, $DB);
+              if (!$this->id)
+                throw new DB_ConnectionError(WAMessage::getMessage('DB_Base.connect') . ' MYSQLi: '.mysqli_connect_errno().': '.mysqli_connect_error());
+              $this->id->autocommit(true);
+              break;
+            case DB_Base::INFORMIX:
+              $this->id = @ifx_connect($DB.$Extra, $UN, $PW);
+              if (!$this->id)
+                throw new DB_ConnectionError(WAMessage::getMessage('DB_Base.connect') . ' INFORMIX: '.ifx_error().': '.ifx_errormsg());
+              break;
+            case DB_Base::MSSQL:
+              //$this->id = @mssql_connect($DB, $UN, $PW);
+              $this->id = @mssql_connect('localhost'.$Extra, $UN, $PW);
+              if (!$this->id)
+                throw new DB_ConnectionError(WAMessage::getMessage('DB_Base.connect') . ' MSSQL: '.mssql_get_last_message());
+              if (!mssql_select_db($DB, $this->id))
+              {
+                $errtxt = mssql_get_last_message();
+                mssql_close($this->id);
+                $this->id = null;
+                throw new DB_ConnectionError(WAMessage::getMessage('DB_Base.select') . $DB . ': '.$errtxt);
+              }
+              break;
+            case DB_Base::INTERBASE:
+              $this->id = @ibase_connect($DB.$Extra, $UN, $PW);
+              if (!$this->id)
+                throw new DB_ConnectionError(WAMessage::getMessage('DB_Base.connect') . ' INTERBASE '.ibase_errcode().': '.ibase_errmsg());
+              break;
+            case DB_Base::SQLITE:
+              $this->id = @sqlite_open($DB.$Extra, 0666, $sqliteerror);
+              if (!$this->id)
+                throw new DB_ConnectionError(WAMessage::getMessage('DB_Base.connect') . ' SQLITE '.$sqliteerror);
+              break;
+            case DB_Base::SYBASE:
+              $this->id = @sybase_connect('localhost'.$Extra, $UN, $PW);
+              if (!$this->id)
+                throw new DB_ConnectionError(WAMessage::getMessage('DB_Base.connect') . ' SYBASE: '.sybase_get_last_message());
+              if (!sybase_select_db($DB, $this->id))
+              {
+                $errtxt = sybase_get_last_message();
+                sybase_close($this->id);
+                $this->id = null;
+                throw new DB_ConnectionError(WAMessage::getMessage('DB_Base.select') . $DB . ': '.$errtxt);
+              }
+              break;
+          }
+        }
+      }
+    }
+    return $this->id;
+  }
+
+  public function checkLogon()
+  {
+    if (!$this->id)
+    {
+      return $this->doLogon($this->username, $this->password, $this->database, $this->extra);
+    }
+    return $this->id;
+  }
+
+  public function useID($id, $flags = 0)
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("common/dominion/DB_Base->useID( $id, $flags )");
+
+    if ($this->id)
+      throw new DB_ConnectionError(WAMessage::getMessage('DB_Base.used'));
+    $this->parseFlags($flags);
+
+    if ($this->type == DB_Base::ORACLE && !$this->ifODBC)
+      $this->commitMethod = OCI_COMMIT_ON_SUCCESS;
+    $this->id = $id;
+    return $this->id;
+  }
+
+  public function logOff($destructing = false)
+  {
+    if (!$destructing && (self::$debug || $this->localdebug))
+      $this->doDebug('common/dominion/DB_Base->logOff()', WADebug::SYSTEM);
+
+    if (!$this->id)
+      return true;
+    // We only close if we are not persistent
+    if ($this->ifPDO)
+    {
+      // we just unlink the PDO object to destroy it
+      $this->id = null;
+    }
+    elseif(!$this->ifPersistent)
+    {
+      if ($this->ifODBC)
+        $ret = odbc_close($this->id);
+      else
+      {
+        switch($this->type)
+        {
+          case DB_Base::ORACLE:
+            $ret = OCILogoff($this->id);
+            $this->commitMethod = null;
+            break;
+          case DB_Base::POSTGRES:
+            $ret = pg_close($this->id);
+            break;
+          case DB_Base::MYSQL:
+            // because of multi database into single conector on MYSQL we will have error when closing conectors on same database so we put @
+            // and there is no way to know if a connector is valid or not
+            $ret = @mysql_close($this->id);
+            break;
+          case DB_Base::MYSQLi:
+            $ret = $this->id->close();
+            break;
+          case DB_Base::INFORMIX:
+            $ret = ifx_close($this->id);
+            break;
+          case DB_Base::MSSQL:
+            $ret = mssql_close($this->id);
+            break;
+          case DB_Base::INTERBASE:
+            $ret = ibase_close($this->id);
+            break;
+          case DB_Base::SQLITE:
+            $ret = sqlite_close($this->id);
+            break;
+          case DB_Base::SYBASE:
+            $ret = sybase_close($this->id);
+            break;
+        }
+      }
+      $this->id = null;
+      return $ret;
+    }
+    return true;
+  }
+
+  public function beginTransaction()
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug('common/dominion/DB_Base->BeginTransaction()', WADebug::SYSTEM);
+
+    // checkLogon throw an error if the database could not connect
+    $this->checkLogon();
+    if ($this->ifPDO)
+    {
+      return $this->id->beginTransaction();
+    }
+    if ($this->ifODBC)
+      return odbc_commit($this->id);
+    switch($this->type)
+    {
+      case DB_Base::ORACLE:
+        $this->commitMethod = OCI_DEFAULT;
+        return true;
+      case DB_Base::POSTGRES:
+        return pg_exec($this->id, 'begin');
+      case DB_Base::INTERBASE:
+        return ibase_trans();
+      case DB_Base::MYSQLi:
+        return $this->id->autocommit(false);
+      case DB_Base::MYSQL:
+      case DB_Base::INFORMIX:
+      case DB_Base::MSSQL:
+      case DB_Base::SYBASE:
+        break;
+    }
+    return true;
+  }
+
+  public function doCommit()
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug('common/dominion/DB_Base->doCommit()', WADebug::SYSTEM);
+
+    $this->checkLogon();
+    if ($this->ifPDO)
+    {
+      return $this->id->commit();
+    }
+    if ($this->ifODBC)
+      return odbc_commit($this->id);
+    switch($this->type)
+    {
+      case DB_Base::ORACLE:
+        $this->commitMethod=OCI_COMMIT_ON_SUCCESS;
+        return OCICommit($this->id);
+      case DB_Base::POSTGRES:
+        return pg_exec($this->id, 'commit');
+      case DB_Base::INTERBASE:
+        return ibase_commit();
+      case DB_Base::MYSQLi:
+        return $this->id->commit();
+      case DB_Base::MYSQL:
+      case DB_Base::INFORMIX:
+      case DB_Base::MSSQL:
+      case DB_Base::SYBASE:
+      case DB_Base::DB2:
+      case DB_Base::SQLITE:
+        break;
+    }
+    return true;
+  }
+
+  public function doRollback()
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug('common/dominion/DB_Base->doRollback()', WADebug::SYSTEM);
+
+    $this->checkLogon();
+    if ($this->ifPDO)
+    {
+      return $this->id->rollback();
+    }
+    if ($this->ifODBC)
+      return odbc_rollback($this->id);
+    switch($this->type)
+    {
+      case DB_Base::ORACLE:
+        $this->commitMethod=OCI_COMMIT_ON_SUCCESS;
+        return OCIRollback($this->id);
+      case DB_Base::POSTGRES:
+        return pg_exec($this->id, 'rollback');
+      case DB_Base::INTERBASE:
+        return ibase_rollback();
+      case DB_Base::MYSQLi:
+        return $this->id->rollback();
+      case DB_Base::MYSQL:
+      case DB_Base::INFORMIX:
+      case DB_Base::MSSQL:
+      case DB_Base::SYBASE:
+      case DB_Base::DB2:
+      case DB_Base::SQLITE:
+        break;
+    }
+    return true;
+  }
+
+}
+
+?>

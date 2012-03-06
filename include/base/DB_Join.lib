@@ -1,0 +1,452 @@
+<?php
+
+/*
+    DB_Join.lib, Dominion, the WebAbility(r) Database Abstraction Layer
+    Contains the class to manage joint queries of information
+    (c) 2008-2010 Philippe Thomassigny
+
+    This file is part of Dominion
+
+    Dominion is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Dominion is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Dominion.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
+/* @UML_Box -- Do not edit
+|------------------------------------------------------------------|
+| DB_Join: Database connector object                               |
+|------------------------------------------------------------------|
+|------------------------------------------------------------------|
+|------------------------------------------------------------------|
+@End_UML_Box */
+
+// =====================================================
+// Object DB_Join
+// Contructor: DB_Join(array("syn" => $DB_Table), [array]($DB_JoinCondition), array("syn" => Condition));
+// =====================================================
+final class DB_Join extends WADebug
+{
+  private $Tables = null;
+  private $JoinConditions = null;
+
+  function __construct($Tables, $JoinConditions)
+  {
+    parent::__construct();
+    $this->doDebug("common/DB_Join->__construct($Tables, $JoinConditions)", WADebug::SYSTEM);
+
+    $this->Tables = $Tables;
+    $this->JoinConditions = $JoinConditions;
+  }
+
+  public function doSelect($where, $order, $onlyquery = false, $limit = null, $offset = null)
+  {
+    $this->doDebug("common/DB_Join->doSelect($where, $order, $onlyquery, $limit, $offset)", WADebug::SYSTEM);
+
+    return $this->doSelectCondition($where, $order, $onlyquery, $limit, $offset);
+  }
+
+  public function doSelectCondition($where, $order, $onlyquery = false, $limit = null, $offset = null)
+  {
+    $this->doDebug("common/DB_Join->doSelectCondition($where, $order, $onlyquery, $limit, $offset)", WADebug::SYSTEM);
+
+    $sqlt = $sqlf = "";
+    $itemt = $itemf = 0;
+    $fieldindex = array();
+    $fieldarray = array();
+
+    foreach($this->Tables as $k => $t)
+    {
+      $connector = $t->getConnectorType();
+      foreach($t->getFields() as $k1 => $f)
+      {
+        $pre = ""; $post  = "";
+        if ($connector == DB_Base::MSSQL)
+        {
+          if ($f->getType() == DB_Field::DATETIME)
+          {
+            $sqlf .= ($itemf?", ":"").'CONVERT(varchar(20),'.$pre."$k.".$t->getId().$f->getName().$post.',20) as '.$pre.$t->getId().$f->getName().$post;
+          }
+          else
+            $sqlf .= ($itemf?", ":"").$pre."$k.".$t->getId().$f->getName().$post;
+        }
+        else
+          $sqlf .= ($itemf?", ":"").$pre."$k.".$t->getId().$f->getName().$post;
+        $fieldindex[$k.".".$f->getName()] = $itemf;
+        $fieldarray[$k.".".$f->getName()] = $f;
+        $itemf++;
+      }
+      if($connector == DB_Base::MSSQL)
+        $sqlt .= ($itemt?", ":"").$t->getName()." $k";
+      else
+        $sqlt .= ($itemt?", ":"").$t->getName()." as $k";
+      $itemt++;
+    }
+    $sql = "select ";
+    if(is_numeric($limit) && $limit > -1 && $connector == DB_Base::MSSQL)
+      $sql .= "top $limit ";
+    $sql .= $sqlf ." from ".$sqlt;
+
+    $item = 0;
+    if(is_array($this->JoinConditions))
+    {
+      foreach($this->JoinConditions as $k => $f)
+      {
+        if(!$item)
+        {
+          $sql .= $f ? " where " . $f->getCondition($this->Tables) : "";
+        }
+        else
+        {
+          $sql .= ($item ? (" " . $f->getOpGlobal() ." ") : "");
+          $sql .= $f ? " " . $f->getCondition($this->Tables) : "";
+        }
+        $item++;
+      }
+    }
+
+    if (is_array($where))
+    {
+      foreach ($where as $k => $f)
+      {
+        if (!$item)
+        {
+          $sql .= $f ? " where " . $f[1]->getCondition($this->Tables[$f[0]]->getId(), $this->Tables[$f[0]], $this->Tables[$f[0]]->getConnectorType(), $f[0].".") : "";
+        }
+        else
+        {
+          $sql .= ($item ? (" " . $f[1]->getOpGlobal() ." ") : "");
+          $sql .= $f ? " " . $f[1]->getCondition($this->Tables[$f[0]]->getId(), $this->Tables[$f[0]], $this->Tables[$f[0]]->getConnectorType(), $f[0].".") : "";
+        }
+        $item++;
+      }
+    }
+
+    if (is_array($order))
+    {
+      $item = 0;
+      $sql .= " order by ";
+      foreach ($order as $k => $f)
+      {
+        $sql .= ($item++?", ":"").($f ? $f[0] . '.' . $f[1]->getOrderBy($this->Tables[$f[0]]->getId()) : "");
+      }
+    }
+
+    // Check for limit results
+    if(is_numeric($limit) && $limit > -1 && $connector != DB_Base::MSSQL)
+    $sql = $sql . " limit $limit";
+    if (is_numeric($offset) && $offset > -1 && ($connector == DB_Base::MYSQLi || $connector == DB_Base::MYSQL || $connector == DB_Base::POSTGRES))
+    {
+      $sql = $sql . " offset $offset";
+    }
+
+    $this->doDebug("common/DB_join->doSelectCondition # constructed query: $sql", WADebug::INFO);
+    if ($onlyquery)
+      return array("Query" => $sql, "FieldIndex" => $fieldindex);
+
+    reset($this->Tables);
+    $table = current($this->Tables);
+    $cur = new DB_Cursor($table->getConnector());
+    $cur->Exec($sql);
+    $result = null;
+
+    while ($res = $cur->Fetch())
+    {
+      $fres = array();
+      $item = 0;
+      foreach ($fieldindex as $k => $f)
+      {
+        if($fieldarray[$k]->getType() == DB_Field::DATE || $fieldarray[$k]->getType() == DB_Field::DATETIME)
+        {
+          $thedate = new DB_Date($res[$f]);
+//          if($fieldarray[$k]->isAbsoluteDate())
+//          {
+            $fres[$k] = $thedate;
+//          }
+//          else
+//          {
+//            $fres[$k] = $thedate->getUnixTime();
+//          }
+        }
+        else
+          $fres[$k] = $res[$f];
+      }
+      $result[] = $fres;
+    }
+    $cur->Close();
+    return $result;
+  }
+
+
+  public function doSelectReport($calcfields, $where, $order = null, $onlyquery = false, $limit = null, $offset = null)
+  {
+    $this->doDebug("common/DB_Join->doSelectReport($calcfields, $where, $order, $onlyquery, $limit, $offset)", WADebug::SYSTEM);
+
+    return $this->doSelectReportGroup($calcfields, $where, null, $order, $onlyquery, $limit, $offset);
+  }
+
+  public function doSelectReportGroup($calcfields, $where, $groupby, $order = null, $onlyquery = false, $limit = null, $offset = null)
+  {
+    $this->doDebug("common/DB_Join->doSelectReportGroup($calcfields, $where, $groupby, $order, $onlyquery, $limit, $offset)", WADebug::SYSTEM);
+
+    $sqlt = $sqlf = "";
+    $itemt = $itemf = 0;
+    $fieldindex = array();
+    $fieldarray = array();
+
+    $connector = null;
+    foreach ($calcfields as $k => $cf)
+    {
+      if (!$connector)
+        $connector = $this->Tables[$cf[0]]->getConnectorType();
+
+      if ($connector == DB_Base::MSSQL)
+      {
+        if ($this->Tables[$cf[0]]->getField($cf[1]->getField())->getType()  == DB_Field::DATETIME)
+        {
+          $sqlf .= ($itemf?", ":"").'CONVERT(varchar(20),'.$cf[1]->createCalcField($this->Tables[$cf[0]]->getId(), $this->Tables[$cf[0]]->getConnectorType(), $cf[0].".").',20)';
+        }
+        else
+          $sqlf .= ($itemf?", ":"").$cf[1]->createCalcField($this->Tables[$cf[0]]->getId(), $this->Tables[$cf[0]]->getConnectorType(), $cf[0].".");
+      }
+      else
+        $sqlf .= ($itemf?", ":"").$cf[1]->createCalcField($this->Tables[$cf[0]]->getId(), $this->Tables[$cf[0]]->getConnectorType(), $cf[0].".");
+      $fieldindex[$k.".".$cf[1]->getName()] = $itemf;
+      $fieldarray[$k.".".$cf[1]->getName()] = $cf[1];
+      $fieldorigin[$k.".".$cf[1]->getName()] = $this->Tables[$cf[0]]->getField($cf[1]->getField());
+      $itemf++;
+    }
+    $sql = "select ";
+    if(is_numeric($limit) && $limit > -1 && $connector == DB_Base::MSSQL)
+      $sql .= "top $limit ";
+
+    $sqlt = "";
+    $itemt = 0;
+    foreach($this->Tables as $k => $t)
+    {
+      if($connector == DB_Base::MSSQL)
+        $sqlt .= ($itemt?", ":"").$t->getName()." as $k";
+      else
+        $sqlt .= ($itemt?", ":"").$t->getName()." as $k";
+      $itemt++;
+    }
+    $sql .= $sqlf ." from ".$sqlt;
+
+    $item = 0;
+    if(is_array($this->JoinConditions))
+    {
+      foreach($this->JoinConditions as $k => $f)
+      {
+        if(!$item)
+        {
+          $sql .= $f ? " where " . $f->getCondition($this->Tables) : "";
+        }
+        else
+        {
+          $sql .= ($item ? (" " . $f->getOpGlobal() ." ") : "");
+          $sql .= $f ? " " . $f->getCondition($this->Tables) : "";
+        }
+        $item++;
+      }
+    }
+
+    if (is_array($where))
+    {
+      foreach ($where as $k => $f)
+      {
+        if (!$item)
+        {
+          $sql .= $f ? " where " . $f[1]->getCondition($this->Tables[$f[0]]->getId(), $this->Tables[$f[0]], $this->Tables[$f[0]]->getConnectorType(), $f[0].".") : "";
+        }
+        else
+        {
+          $sql .= ($item ? (" " . $f[1]->getOpGlobal() ." ") : "");
+          $sql .= $f ? " " . $f[1]->getCondition($this->Tables[$f[0]]->getId(), $this->Tables[$f[0]], $this->Tables[$f[0]]->getConnectorType(), $f[0].".") : "";
+        }
+        $item++;
+      }
+    }
+
+    if ($groupby)
+    {
+      $sqlgb = " group by ";
+      $item = 0;
+      foreach($groupby as $g)
+      {
+        $sqlgb .= ($item++?", ":"").$this->Tables[$g[0]]->getId().$g[1];
+      }
+      $sql .= $sqlgb;
+    }
+
+    if (is_array($order))
+    {
+      $item = 0;
+      $sql .= " order by ";
+      foreach ($order as $k => $f)
+      {
+        $sql .= ($item++?", ":"").($f ? $f->getOrderBy($this->Tables[$k]->getId()) : "");
+      }
+    }
+
+    // Check for limit results
+    if(is_numeric($limit) && $limit > -1 && $connector != DB_Base::MSSQL)
+      $sql = $sql . " limit $limit";
+    if (is_numeric($offset) && $offset > -1 && ($connector == DB_Base::MYSQLi || $connector == DB_Base::MYSQL || $connector == DB_Base::POSTGRES))
+    {
+      $sql = $sql . " offset $offset";
+    }
+
+    $this->doDebug("common/DB_join->doSelectReportGroup # constructed query: $sql", WADebug::INFO);
+    if ($onlyquery)
+      return array("Query" => $sql, "FieldIndex" => $fieldindex);
+
+    reset($this->Tables);
+    $table = current($this->Tables);
+    $cur = new DB_Cursor($table->getConnector());
+
+     $cur->Exec($sql);
+    $result = null;
+
+    while ($res = $cur->Fetch())
+    {
+      $fres = array();
+      $item = 0;
+
+      foreach ($fieldarray as $k => $f)
+      {
+        if($fieldorigin[$k]->getType() == DB_Field::DATE || $fieldorigin[$k]->getType() == DB_Field::DATETIME)
+        {
+          $thedate = new DB_Date($res[$item++]);
+//          if($fieldorigin[$k]->isAbsoluteDate())
+//          {
+            $fres[$f->getName()] = $thedate;
+//          }
+//          else
+//          {
+//            $fres[$f->getName()] = $thedate->getUnixTime();
+//          }
+        }
+        else
+          $fres[$f->getName()] = $res[$item++];
+      }
+      $result[] = $fres;
+    }
+    $cur->Close();
+    return $result;
+  }
+
+  // get database field max value
+  public function getMaxValue($field, $where, $onlyquery=false)
+  {
+    $this->doDebug("common/DB_join->getMaxValue($field, $where, $onlyquery)", WADebug::SYSTEM);
+
+    $sql = "select max(".$this->id.$field.") from ".$this->name;
+
+    if (is_array($where))
+    {
+      $first = 1;
+      $item = 0;
+      foreach ($where as $k => $f)
+      {
+        if ($first)
+        {
+          $sql .= $f ? " where " . $f->getCondition($this->id, $this, $this->connectortype) : "";
+          $first = 0;
+        }
+        else
+        {
+          $sql .= ($item ? (" " . $f->getOpGlobal() ." ") : "");
+          $sql .= $f ? " " . $f->getCondition($this->id, $this, $this->connectortype) : "";
+        }
+        $item++;
+      }
+    }
+    else
+    $sql .= ($where ? " where " . $where->getCondition($this->id, $this, $this->connectortype):"");
+
+    $this->doDebug("DB_Table::getMaxValue() Constructed query: <b>$sql</b>");
+
+    if ($onlyquery)
+    return array("Query" => $sql);
+    $cur = new DB_Cursor($this->connector);
+    $res = $cur->Exec($sql);
+    $res = $cur->Fetch();
+    $cur->Close();
+    return $res[0];
+  }
+
+  // get count
+  public function getNumberOfRecords($where, $onlyquery=false)
+  {
+    $this->doDebug("common/DB_join->getNumberOfRecords($where, $onlyquery)", WADebug::SYSTEM);
+
+    $sqlt = $sqlf = "";
+    $itemt = $itemf = 0;
+    $fieldindex = array();
+
+    foreach($this->Tables as $k => $t)
+    {
+      $sqlt .= ($itemt?", ":"").$t->getName()." as $k";
+      $itemt++;
+    }
+    $sql = "select count(*) from ".$sqlt;
+
+    $item = 0;
+    if(is_array($this->JoinConditions))
+    {
+      foreach($this->JoinConditions as $k => $f)
+      {
+        if(!$item)
+        {
+          $sql .= $f ? " where " . $f->getCondition($this->Tables) : "";
+        }
+        else
+        {
+          $sql .= ($item ? (" " . $f->getOpGlobal() ." ") : "");
+          $sql .= $f ? " " . $f->getCondition($this->Tables) : "";
+        }
+        $item++;
+      }
+    }
+
+    if (is_array($where))
+    {
+      foreach ($where as $k => $f)
+      {
+        if (!$item)
+        {
+          $sql .= $f ? " where " . $f[1]->getCondition($this->Tables[$f[0]]->getId(), $this->Tables[$f[0]], $this->Tables[$f[0]]->getConnectorType(), $f[0].".") : "";
+        }
+        else
+        {
+          $sql .= ($item ? (" " . $f[1]->getOpGlobal() ." ") : "");
+          $sql .= $f ? " " . $f[1]->getCondition($this->Tables[$f[0]]->getId(), $this->Tables[$f[0]], $this->Tables[$f[0]]->getConnectorType(), $f[0].".") : "";
+        }
+        $item++;
+      }
+    }
+
+    $this->doDebug("common/DB_join->doSelectCondition # constructed query: $sql", WADebug::INFO);
+    if ($onlyquery)
+      return array("Query" => $sql, "FieldIndex" => null);
+
+    reset($this->Tables);
+    $table = current($this->Tables);
+    $cur = new DB_Cursor($table->getConnector());
+    $cur->Exec($sql);
+    $res = $cur->Fetch();
+    $cur->Close();
+    return $res[0];
+  }
+
+}
+
+?>

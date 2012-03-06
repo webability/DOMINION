@@ -1,0 +1,223 @@
+<?php
+
+/*
+    DB_uTime.lib, Dominion, the WebAbility(r) Database Abstraction Layer
+    Contains the class to manage microtime
+    (c) 2008-2010 Philippe Thomassigny
+
+    This file is part of Dominion
+
+    Dominion is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Dominion is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Dominion.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
+/* @UML_Box -- Do not edit
+|------------------------------------------------------------------|
+| DB_uTime: microtime manipulation object                          |
+|------------------------------------------------------------------|
+| - ::init : bollean                                               |
+| - ::messages : array(string)                                     |
+| # microsecond : integer                                          |
+| # second : integer                                               |
+|------------------------------------------------------------------|
+| + new DB_uTime($timeinit: mixed)                                 |
+| + ::setMessages($messages: array(string => string))              |
+| + __clone(): DB_Date                                             |
+| + getClone() : DB_Date                                           |
+| + initTime($time: mixed) : DB_uTime                              |
+| + copy($date: DB_Date) : DB_uTime                                |
+| + setNow() : DB_uTime                                            |
+| + setSecond($second: integer) : DB_uTime                         |
+| + setMicrosecond($microsecond: integer) : DB_uTime               |
+| + setTime($time: integer) : DB_uTime                             |
+| + getSecond() : integer                                          |
+| + getMicrosecond() : integer                                     |
+| + getTime() : float                                              |
+| + startChronometer() : DB_uTime                                  |
+| + getChronometer(): float                                        |
+| + __tostring() : string                                          |
+|------------------------------------------------------------------|
+@End_UML_Box */
+
+// =====================================================
+// Object DB_uTime
+// Contructor: __construct();
+// =====================================================
+class DB_uTime extends WAClass
+{
+  private static $init = false;
+  private static $messages = array(
+    'DB_uTime.badinit' => 'The initialization time is not recognized.',
+    'DB_uTime.badutimeobject' => 'The parameter is not a DB_uTime object.'
+  );
+
+  protected $microsecond = 0;
+  protected $second = 0;
+
+  // Main constructor: static data
+  public function __construct($timeinit = null)
+  {
+    if (!self::$init)
+    {
+      // send messages to WAMessage
+      WAMessage::addMessages(self::$messages);
+      self::$init = true;
+    }
+
+    parent::__construct();
+
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("common/dominion/DB_uTime->__construct( $timeinit )", WADebug::SYSTEM);
+
+    if ($timeinit)
+      $this->initTime($timeinit);
+  }
+
+  public function __clone()
+  {
+    return $this->getClone();
+  }
+
+  public function getClone()
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("common/dominion/DB_uTime->getClone()", WADebug::SYSTEM);
+
+    $c = new DB_uTime();
+    $c->setSecond($this->second);
+    $c->setMicrosecond($this->microsecond);
+    return $c;
+  }
+
+  public function initTime($timeinit)
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("common/dominion/DB_Date->setDate( $dateinit )", WADebug::SYSTEM);
+
+    if ($timeinit instanceof DB_uTime)
+      $this->copy($timeinit);
+    elseif ($timeinit == 'N')
+      $this->setNow();
+    elseif ($timeinit !== null)
+      throw new DB_uTimeException(WAMessage::getMessage('DB_uTime.badinit'));
+    return $this;
+  }
+
+  public function copy($utime)
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("common/dominion/DB_uTime->copy( $utime )", WADebug::SYSTEM);
+
+    if (!($utime instanceof DB_Date))
+      throw new DB_uTimeException(WAMessage::getMessage('DB_uTime.badutimeobject'));
+    $this->second = $utime->getSecond();
+    $this->microsecond = $utime->getMicrosecond();
+    return $this;
+  }
+
+  public function setNow()
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("common/dominion/DB_uTime->setNow()", WADebug::SYSTEM);
+
+    list($usec, $sec) = explode(" ", microtime());
+    $this->second = (int)$sec;
+    $this->microsecond = (int)($usec*1000000);
+    return $this;
+  }
+
+  public function setSecond($second)
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("common/dominion/DB_uTime->setSecond( $second )", WADebug::SYSTEM);
+
+    $this->second = (int)$second;
+    return $this;
+  }
+
+  public function setMicrosecond($microsecond)
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("common/dominion/DB_uTime->setMicrosecond( $microsecond )", WADebug::SYSTEM);
+
+    $this->microsecond = (int)$microsecond;
+    if ($this->microsecond < 0)
+      $this->microsecond = 0;
+    if ($this->microsecond > 999999)
+      $this->microsecond = 999999;
+    return $this;
+  }
+
+  public function setTime($time)
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("common/dominion/DB_uTime->setTime( $time )", WADebug::SYSTEM);
+
+    $this->second = (int)$time;
+    $this->microsecond = (int)(($time - (int)$time) * 1000000);
+    return $this;
+  }
+
+  public function getSecond()
+  {
+    return $this->second;
+  }
+
+  public function getMicrosecond()
+  {
+    return $this->microsecond;
+  }
+
+  public function getTime()
+  {
+    return (float)$this->second + (float)$this->microsecond / 1000000;
+  }
+
+  public function startChronometer()
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("common/dominion/DB_uTime->startChronometer()", WADebug::SYSTEM);
+
+    $this->setNow();
+    return $this;
+  }
+
+  public function getChronometer()
+  {
+    $t0 = $this->getTime();
+    list($usec, $sec) = explode(" ", microtime());
+    $t1 = ((float)$sec + (float)$usec);
+
+    return $t1 - $t0;
+  }
+
+  protected function serial(&$data)
+  {
+    $data['second'] = $this->second;
+    $data['microsecond'] = $this->microsecond;
+  }
+
+  protected function unserial($data)
+  {
+    $this->second = $data['second'];
+    $this->microsecond = $data['microsecond'];
+  }
+
+  public function __toString()
+  {
+    return number_format($this->second + $this->microsecond / 1000000, 6);
+  }
+
+}
+
+?>

@@ -1,0 +1,126 @@
+<?php
+
+/*
+    DB_FieldInteger.lib, Dominion, the WebAbility(r) Database Abstraction Layer
+    Contains the class to manage integer fields
+    (c) 2008-2010 Philippe Thomassigny
+
+    This file is part of Dominion
+
+    Dominion is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Dominion is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Dominion.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
+/* @UML_Box -- Do not edit
+|------------------------------------------------------------------|
+| DB_FieldInteger:                                                 |
+|------------------------------------------------------------------|
+|------------------------------------------------------------------|
+|------------------------------------------------------------------|
+@End_UML_Box */
+
+final class DB_FieldInteger extends DB_Field
+{
+  private $types = array(
+    DB_Base::MYSQL => array(
+      DB_Field::INTEGER => "integer"
+    ),
+    DB_Base::POSTGRES => array(
+      DB_Field::INTEGER => "integer"
+    ),
+    DB_Base::MSSQL => array(
+      DB_Field::INTEGER => "int"
+    ),
+    DB_Base::ORACLE => array(
+      DB_Field::INTEGER => "number(16)"
+    )
+  );
+
+  function __construct($name, $checks = null)
+  {
+    parent::__construct($name, DB_Field::INTEGER, $checks);
+
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("common/dominion/DB_FieldInteger->__construct( $name, $checks )", WADebug::SYSTEM);
+  }
+
+  public function createField($id, $DB, &$ifText)
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("common/dominion/DB_FieldInteger->createField( $id, $DB, $ifText )", WADebug::SYSTEM);
+
+    if ($DB == DB_Base::POSTGRES && $this->isAutoIncrement())
+      $line = $id . $this->name . " serial";
+    else
+      $line = $id . $this->name . " " . $this->types[$DB][$this->type];
+
+    if ($this->checks != null)
+      $line .= $this->checks->createCheck($id.$this->name, $DB);
+    else
+    {
+      if ($DB == DB_Base::MSSQL)
+      {
+        $line .= " NULL";
+      }
+    }
+
+    return $line;
+  }
+
+  // This function is used by the doInsert and doUpdate functions, to create the values to insert/update
+  public function createValue($v, $table, $DB, $id)
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("common/dominion/DB_FieldInteger->createValue( $v, $table, $DB, $id )", WADebug::SYSTEM);
+
+    if ($v === null)
+      return "NULL";
+    else
+    {
+      if ($table != null && ($v === "0" || $v === 0) && $this->isAutoIncrement())
+      {
+        switch($DB)
+        {
+          case DB_Base::MYSQL:
+            break;
+          case DB_Base::POSTGRES:
+            $v = "nextval('".$table."_".$id.$this->name."_seq')";
+            break;
+          case DB_Base::ORACLE:
+            $v = $table."_".$this->name."_seq.nextval";
+            break;
+        }
+      }
+      else
+      {
+        if ($v === "")
+          return "NULL";
+      }
+    }
+    return $v;
+  }
+
+  protected function serial(&$data)
+  {
+    parent::serial($data);
+  }
+
+  protected function unserial($data)
+  {
+    parent::unserial($data);
+  }
+
+}
+
+
+?>

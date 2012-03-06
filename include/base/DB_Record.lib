@@ -1,0 +1,187 @@
+<?php
+
+/*
+    DB_Record.lib, Dominion, the WebAbility(r) Database Abstraction Layer
+    Contains to manage a record of information (array of fields)
+    (c) 2008-2010 Philippe Thomassigny
+
+    This file is part of Dominion
+
+    Dominion is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Dominion is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Dominion.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
+/* @UML_Box -- Do not edit
+|------------------------------------------------------------------|
+| DB_Record: Array Data transfer Object for database               |
+|------------------------------------------------------------------|
+| - record : array(string => mixed)                                |
+|------------------------------------------------------------------|
+| + new DB_Record()                                                |
+| + __get($name: string) : mixed                                   |
+| + __set($name: string, $value: mixed)                            |
+| + __isset($name: string) : boolean                               |
+| + __unset($name: string)                                         |
+| + rewind()                                                       |
+| + current() : mixed                                              |
+| + key() : mixed                                                  |
+| + next($second: integer) : mixed                                 |
+| + valid($microsecond: integer) : boolean                         |
+| + __tostring() : string                                          |
+|------------------------------------------------------------------|
+@End_UML_Box */
+
+// =====================================================
+// Object DB_Record
+// Contructor: __construct();
+// Any record object is: PHP data (integer, string, real, stream, ...), DB_Date or DB_Lob
+// Objects can be access by $Record->fieldname to set and read values
+// =====================================================
+class DB_Record extends WAClass implements ArrayAccess, Iterator, Countable
+{
+  private $record = array();
+
+  function __construct($values = null)
+  {
+    parent::__construct();
+
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("common/dominion/DB_Record->__construct( $values )", WADebug::SYSTEM);
+
+    if ($values)
+      $this->record = $values;
+  }
+
+  public function __get($name)
+  {
+    if (isset($this->record[$name]))
+      return $this->record[$name];
+    return null;
+  }
+
+  public function __set($name, $val)
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("common/dominion/DB_Record->__set( $name, $val )", WADebug::SYSTEM);
+
+    $this->record[$name] = $val;
+    return $this;
+  }
+
+  public function __isset($name)
+  {
+    return isset($this->record[$name]);
+  }
+
+  public function __unset($name)
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("common/dominion/DB_Record->__unset( $name )", WADebug::SYSTEM);
+
+    unset($this->record[$name]);
+  }
+
+  // ArrayAccess implemented
+  public function offsetSet($offset, $value)
+  {
+    if ($offset)
+      $this->record[$offset] = $value;
+  }
+
+  public function offsetExists($offset)
+  {
+    return isset($this->record[$offset]);
+  }
+
+  public function offsetUnset($offset)
+  {
+    unset($this->record[$offset]);
+  }
+
+  public function offsetGet($offset)
+  {
+    return isset($this->record[$offset]) ? $this->record[$offset] : null;
+  }
+
+  // Iterator implemented
+  public function rewind()
+  {
+    reset($this->record);
+  }
+
+  public function current()
+  {
+    return current($this->record);
+  }
+
+  public function key()
+  {
+    return key($this->record);
+  }
+
+  public function next()
+  {
+    return next($this->record);
+  }
+
+  public function valid()
+  {
+    return current($this->record) !== false;
+  }
+
+  // Countable implemented
+  public function count()
+  {
+    return count($this->record);
+  }
+
+  // Own array get/set
+  public function getArray()
+  {
+    return $this->record;
+  }
+
+  public function setArray($array)
+  {
+    if (self::$debug || $this->localdebug)
+      $this->doDebug("common/dominion/DB_Record->setArray( $array )", WADebug::SYSTEM);
+
+    foreach($array as $k => $v)
+      $this->record[$k] = $v;
+    return $this;
+  }
+
+  public function __toString()
+  {
+    $txt = '';
+    $item = 0;
+    foreach($this->record as $k => $v)
+    {
+      $txt .= ($item++?';':'') . $k . '=' .$v;
+    }
+    return '{' . $txt . '}';
+  }
+
+  protected function serial(&$data)
+  {
+    $data['record'] = $this->record;
+  }
+
+  protected function unserial($data)
+  {
+    $this->record = $data['record'];
+  }
+
+}
+
+?>
