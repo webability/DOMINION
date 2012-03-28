@@ -47,16 +47,105 @@ final class DB_Table extends WAClass
   private $connectortype = null;
   private $insertedkey = null;
 
-  function __construct($name, $id, $type)
+  function __construct($name, $id = null, $type = null)
   {
     parent::__construct();
 
     if (self::$debug || $this->localdebug)
       $this->doDebug("include/base/DB_Table->__construct( $name, $id, $type )", WADebug::SYSTEM);
 
-    $this->name = $name;
-    $this->id = $id;
-    $this->type = $type;
+    if (is_array($name))
+    {
+      $this->loadDefinition($name);
+    }
+    elseif (is_string($name))
+    {
+      if (strpos($name, '<?xml') !== false)
+        $this->loadDefinition(WASimpleXML::tags($name));
+      elseif (strlen($name) < 512 && is_file($name))
+        $this->loadDefinition(WASimpleXML::tags(file_get_contents($name)));
+      else
+      {
+        $this->name = $name;
+        $this->id = $id;
+        $this->type = $type;
+      }
+    }
+    else
+      throw new DB_TableError('Error: table name not recogized: '.$name);
+  }
+
+  private function loadDefinition($data)
+  {
+    $tabletypes = array(
+      'syscatalog' => DB_Table::SYSCATALOG,
+      'catalog' => DB_Table::CATALOG,
+      'table' => DB_Table::TABLE,
+      'log' => DB_Table::LOG,
+      'history' => DB_Table::HISTORY,
+      'historylog' => DB_Table::HISTORYLOG,
+    );
+
+    if (!isset($data['name']) || !isset($data['id']) || !isset($data['type']))
+      throw new DB_TableError('Error: data array is not a table descriptor');
+    $this->name = $data['name'];
+    $this->id = $data['id'];
+    // CHECK TYPE ON CONSTANTS
+    if (!isset($tabletypes[$data['type']]))
+      throw new DB_TableError('Error: type of table not known');
+    $this->type = $tabletypes[$data['type']];
+
+    foreach($data['fields'] as $field => $datafield)
+    {
+      $checks = array();
+      if ($datafield['primarykey'])
+        $checks[] = DB_Check::PK;
+      if ($datafield['notnull'])
+        $checks[] = DB_Check::NN;
+      if ($datafield['autoincrement'])
+        $checks[] = DB_Check::AI;
+      if ($datafield['foreignkey'])
+        $checks[] = DB_Check::FK . '.' . $datafield['foreignkey']['table'] . '.' . $datafield['foreignkey']['field'];
+      if ($datafield['index'])
+        $checks[] = DB_Check::IN;
+      if ($datafield['uniqueindex'])
+        $checks[] = DB_Check::UI;
+      if ($datafield['multipleindex'])
+        $checks[] = DB_Check::MI . '.' . implode('.', $datafield['multipleindex']['field']);
+      if ($datafield['multipleuniqueindex'])
+        $checks[] = DB_Check::MU . '.' . implode('.', $datafield['multipleuniqueindex']['field']);
+      if ($datafield['deletecascade'])
+        $checks[] = DB_Check::DC;
+      if ($datafield['transfer'])
+        $checks[] = DB_Check::TR;
+      // SWITCH ON TYPES
+      switch($datafield['type'])
+      {
+        case 'integer':
+          $this->AddField(new DB_FieldInteger($field, sizeof($checks)?new DB_Check($checks):null));
+          break;
+        case 'varchar':
+          $this->AddField(new DB_FieldVarchar($field, $datafield['length'], sizeof($checks)?new DB_Check($checks):null));
+          break;
+        case 'date':
+          $this->AddField(new DB_FieldDate($field, sizeof($checks)?new DB_Check($checks):null));
+          break;
+        case 'datetime':
+          $this->AddField(new DB_FieldDateTime($field, sizeof($checks)?new DB_Check($checks):null));
+          break;
+        case 'real':
+          $this->AddField(new DB_FieldReal($field, sizeof($checks)?new DB_Check($checks):null));
+          break;
+        case 'text':
+          $this->AddField(new DB_FieldText($field, sizeof($checks)?new DB_Check($checks):null));
+          break;
+        case 'lob':
+          $this->AddField(new DB_FieldLob($field, sizeof($checks)?new DB_Check($checks):null));
+          break;
+        default:
+          throw new DB_TableError('Error: type of field not known');
+      }
+    }
   }
 
   public function getName()
@@ -67,6 +156,11 @@ final class DB_Table extends WAClass
   public function getId()
   {
     return $this->id;
+  }
+
+  public function getType()
+  {
+    return $this->type;
   }
 
   public function getFields()

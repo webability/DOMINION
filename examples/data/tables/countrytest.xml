@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<table>
+  <name>BASE_country</name>
+  <id>BASE_cou_</id>
+  <type>table</type>
+  <fields>
+    <key>
+      <type>varchar</type>
+      <length>8</length>
+      <primarykey>true</primarykey>
+    </key>
+    <name>
+      <type>varchar</type>
+      <length>100</length>
+      <notnull>true</notnull>
+    </name>
+    <father>
+      <type>varchar</type>
+      <length>8</length>
+      <foreignkey><table>BASE_country</table><field>BASE_cou_key</field></foreignkey>
+    </father>
+    <condition>
+      <type>varchar</type>
+      <length>255</length>
+    </condition>
+  </fields>
+</table>

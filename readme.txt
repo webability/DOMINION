@@ -45,11 +45,26 @@ Important notes:
 To do:
 - Examples
 - Documentation
+- syncronize table without loosing info
+- import/export XML tables
+- import/export pieces of tables
+- import/export full databases with autoincrement/pk/fk check
+- export table definition to xml
+- LOB integration
+- french translation of Dominion messages
 
 ----
 
-Build 5: 2012//:
+Build 5: 2012/03/27:
 - Removed error in doSelectCondition: simple field order was not working
+- DB_FieldInteger.createValue has been modified to always return an integer
+- DB_FieldReal.createValue has been modified to always return a formated real with decimal dot to protect automatic locale with comas.
+- Markups added into XML language files to extract and insert entries automatically
+- Added tables definition into XML descriptor files or array, added to DB_Table constructor to load the table
+- DB_TableExport coded
+- DB_Table->getType() added
+- Added getLength() on DB_FieldVarchar
+- Added getChecks() on DB_Check
 
 Build 4: 2011/10/24:
 - The absolute dates/unix dates in DB_Join have been set to DB_Date always

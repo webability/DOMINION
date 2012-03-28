@@ -16,14 +16,16 @@ EOF;
 echo "Loading the instances...<br />";
 
 require 'config/db.php';
+/*
 require 'config/country.php';
 require 'config/language.php';
 require 'config/citizen.php';
-
+*/
 // Create the tables
 
 echo "Creating the 3 tables...<br />";
 
+/*
 $country->setDB($DB);
 $country->synchronize(false);
 
@@ -32,10 +34,22 @@ $language->synchronize(false);
 
 $citizen->setDB($DB);
 $citizen->synchronize(false);
+*/
 
 // fill the tables
 
 echo "Filling the 3 tables...<br />";
+
+/*
+$BASE_country = new DB_Table('./config/country.xml');
+//include_once('/home/sites/kalinu.com/include/common/database_def/BASE_country.inc');
+$BASE_country->setDB($DB);
+
+DB_TableExport::export('./data/tables/country.xml', $BASE_country);
+DB_TableExport::exportDefinition('./data/tables/countrytest.xml', $BASE_country);
+
+DB_TableImport::import('./data/tables/country.xml', $BASE_country);
+*/
 
 
 

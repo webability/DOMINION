@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<language id="message" lang="nl">
+<!-- Messages from DomCore -->
+  <entry id="WAMessage.notfound"><![CDATA[Fout: er is geen bericht met ID:]]></entry>
+  <entry id="WAObject.badget"><![CDATA[Fout: het lees-attribuut bestaat niet:]]></entry>
+  <entry id="WAObject.badset"><![CDATA[Fout: het schrijf-attribuut bestaat niet:]]></entry>
+  <entry id="WAObject.badcall"><![CDATA[Fout: de aangeroepen method bestaat niet:]]></entry>
+  <entry id="WAClass.serial"><![CDATA[Fout: u moet uw eigen serial() method declareren.]]></entry>
+  <entry id="WAClass.unserial"><![CDATA[Fout: u moet uw eigen unserial() method declareren.]]></entry>
+  <entry id="WAFile.mkdirproblem"><![CDATA[Fout: de map kon niet worden aangemaakt:]]></entry>
+  <entry id="WAFile.unknownfile"><![CDATA[Fout: het bestand is niet herkend:]]></entry>
+  <entry id="WAFile.baddir"><![CDATA[Fout: het pad naar recursief te verwijderen data is niet in overeenstemming:]]></entry>
+  <entry id="WASHM.nosharedmemory"><![CDATA[Fout: Er is geen gedeelde geheugenruimte beschikbaar.]]></entry>
+  <entry id="WASHM.noattach"><![CDATA[Fout: Onze gedeelde geheugenruimte kon niet worden gekoppeld.]]></entry>
+  <entry id="FileSource.fileerror"><![CDATA[Fout: Het bestand kon niet worden geopend voor schrijfacties:&nbsp;]]></entry>
+  <entry id="Singleton.nocore"><![CDATA[Fout: de singleton bestaat al en kan niet worden gekloond:&nbsp;]]></entry>
+  <entry id="Multiton.nocore"><![CDATA[Fout: de multiton bestaat al en kan niet worden gekloond:&nbsp;]]></entry>
+<!-- End Messages from DomCore -->
+<!-- Messages from Dominion -->
+  <entry id="DB_Date.badinit"><![CDATA[Initialisatie van het object niet herkend.]]></entry>
+  <entry id="DB_Date.badzone"><![CDATA[Het tijdgebied -12 a 12 is niet toegestaan.]]></entry>
+  <entry id="DB_Date.baddateobject"><![CDATA[Het geërfde object moet beginnen met DB_Date.]]></entry>
+  <entry id="DB_Date.baddateunix"><![CDATA[De datum kan niet worden vertaald in een UnixTime tijd.]]></entry>
+  <entry id="DB_Date.badyear"><![CDATA[De notatie voor jaren id 0 t/m 9999.]]></entry>
+  <entry id="DB_Date.badmonth"><![CDATA[De notatie voor maanden is 1 t/m 12.]]></entry>
+  <entry id="DB_Date.daywithoutmonth"><![CDATA[Vereist een jaar in de maand voor de dag in te stellen.]]></entry>
+  <entry id="DB_Date.badday"><![CDATA[De notatie voor dagen is 1 t/m 28,29,30 of 31.]]></entry>
+  <entry id="DB_Date.badhour"><![CDATA[De notatie voor uren is 0 t/m 23.]]></entry>
+  <entry id="DB_Date.badminutes"><![CDATA[De notatie voor minuten de 0 t/m 59.]]></entry>
+  <entry id="DB_Date.badseconds"><![CDATA[De notatie voor seconden is 0 t/m 59.]]></entry>
+  <entry id="DB_Date.badcents"><![CDATA[De notatie voor honderdsten van seconden is 0 t/m 99.]]></entry>
+  <entry id="DB_Date.baddateformat"><![CDATA[Het datumformaat is onjuist.]]></entry>
+  <entry id="DB_uTime.badinit"><![CDATA[Initialisatie van het object niet herkend.]]></entry>
+  <entry id="DB_uTime.badutimeobject"><![CDATA[De parameter is een object uit DB_uTime.]]></entry>
+<!-- End Messages from Dominion -->
+</language>

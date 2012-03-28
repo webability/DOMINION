@@ -8,13 +8,12 @@ define ('WADEBUG', false);
 // We set spanish messages file
 // WAMessage::setMessagesFile('../messages/message.es.xml');
 
-require 'db.php';
-require 'tabletest.php';
+require 'config/db.php';
 
-$tabletest->setDB($DB);
-$tabletest->synchronize();
+$country = new DB_Table('config/country.xml');
 
-
+print $country->explain();
+print serialize($country);
 
 
 ?>

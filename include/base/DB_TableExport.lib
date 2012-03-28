@@ -1,0 +1,213 @@
+<?php
+
+/*
+    DB_TableExport.lib, Dominion, the WebAbility(r) Database Abstraction Layer
+    Contains the class to manager TableExports of information
+    (c) 2008-2010 Philippe Thomassigny
+
+    This file is part of Dominion
+
+    Dominion is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Dominion is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Dominion.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
+/* @UML_Box -- Do not edit
+|------------------------------------------------------------------|
+| DB_TableExport: export a full table                              |
+|------------------------------------------------------------------|
+|------------------------------------------------------------------|
+|------------------------------------------------------------------|
+@End_UML_Box */
+
+class DB_TableExport
+{
+  public static $block = 10000;
+
+  public static function export($file, $table, $condition = null, $orderby = null)
+  {
+    $f = fopen($file, 'wb');
+    if (!$f)
+      throw new DB_TableError('Error: the file could not be created.');
+    fwrite($f, '<?xml version="1.0" encoding="UTF-8" ?>'.PHP_EOL);
+    $name = $table->getName();
+    fwrite($f, '<'.$name.'>'.PHP_EOL);
+    $num = $table->getNumberOfRecords($condition);
+    if ($num > self::$block)
+    {
+      $end = false;
+      $first = 1;
+      while (!$end)
+      {
+        $data = $table->doSelectCondition($condition, $orderby, false, self::$block, $first);
+        if (!$data)
+        {
+          $end = true;
+          break;
+        }
+        foreach($data as $rec)
+        {
+          $trec = '<record>';
+          foreach($rec as $field => $value)
+          {
+            $trec .= '<'.$field.'>'.$value.'</'.$field.'>';
+          }
+          $trec .= '</record>'.PHP_EOL;
+          fwrite($f, $trec);
+        }
+        $first += self::$block;
+      }
+    }
+    else
+    {
+      $data = $table->doSelectCondition($condition, $orderby);
+      foreach($data as $rec)
+      {
+        $trec = '<record>';
+        foreach($rec as $field => $value)
+        {
+          $trec .= '<'.$field.'>'.$value.'</'.$field.'>';
+        }
+        $trec .= '</record>'.PHP_EOL;
+        fwrite($f, $trec);
+      }
+    }
+
+    fwrite($f, '</'.$name.'>'.PHP_EOL);
+    fclose($f);
+  }
+
+  public static function exportDefinition($file, $table)
+  {
+    $tabletypes = array(
+      DB_Table::SYSCATALOG => 'syscatalog',
+      DB_Table::CATALOG => 'catalog',
+      DB_Table::TABLE => 'table',
+      DB_Table::LOG => 'log',
+      DB_Table::HISTORY => 'history',
+      DB_Table::HISTORYLOG => 'historylog'
+    );
+
+    $f = fopen($file, 'wb');
+    if (!$f)
+      throw new DB_TableError('Error: the file could not be created.');
+    fwrite($f, '<?xml version="1.0" encoding="UTF-8" ?>'.PHP_EOL);
+    fwrite($f, '<table>'.PHP_EOL);
+    $name = $table->getName();
+    fwrite($f, '  <name>'.$name.'</name>'.PHP_EOL);
+    $id = $table->getId();
+    fwrite($f, '  <id>'.$id.'</id>'.PHP_EOL);
+    $type = $table->getType();
+    fwrite($f, '  <type>'.$tabletypes[$type].'</type>'.PHP_EOL);
+    fwrite($f, '  <fields>'.PHP_EOL);
+    $fields = $table->getFields();
+    foreach($fields as $field)
+    {
+      fwrite($f, '    <'.$field->getName().'>'.PHP_EOL);
+      switch($field->getType())
+      {
+        case DB_Field::VARCHAR:
+          fwrite($f, '      <type>varchar</type>'.PHP_EOL);
+          fwrite($f, '      <length>'.$field->getLength().'</length>'.PHP_EOL);
+          break;
+        case DB_Field::TEXT:
+          fwrite($f, '      <type>text</type>'.PHP_EOL);
+          break;
+        case DB_Field::DATE:
+          fwrite($f, '      <type>date</type>'.PHP_EOL);
+          break;
+        case DB_Field::DATETIME:
+          fwrite($f, '      <type>datetime</type>'.PHP_EOL);
+          break;
+        case DB_Field::INTEGER:
+          fwrite($f, '      <type>integer</type>'.PHP_EOL);
+          break;
+        case DB_Field::REAL:
+          fwrite($f, '      <type>real</type>'.PHP_EOL);
+          break;
+        case DB_Field::LOB:
+          fwrite($f, '      <type>lob</type>'.PHP_EOL);
+          break;
+      }
+      $checks = $field->getChecks();
+      if ($checks)
+      {
+        $checks = $checks->getChecks();
+        if ($checks)
+        {
+          foreach($checks as $check => $data)
+          {
+            switch($check)
+            {
+              case DB_Check::PK:
+                fwrite($f, '      <primarykey>true</primarykey>'.PHP_EOL);
+                break;
+              case DB_Check::NN:
+                fwrite($f, '      <notnull>true</notnull>'.PHP_EOL);
+                break;
+              case DB_Check::AI:
+                fwrite($f, '      <autoincrement>true</autoincrement>'.PHP_EOL);
+                break;
+              case DB_Check::FK:
+                $expfk = explode(".",substr($data, 3));
+                $fktable = $expfk[0]; $fkfield = $expfk[1];
+                fwrite($f, '      <foreignkey><table>'.$fktable.'</table><field>'.$fkfield.'</field></foreignkey>'.PHP_EOL);
+                break;
+              case DB_Check::IN:
+                fwrite($f, '      <index>true</index>'.PHP_EOL);
+                break;
+              case DB_Check::UI:
+                fwrite($f, '      <uniqueindex>true</uniqueindex>'.PHP_EOL);
+                break;
+              case DB_Check::MI:
+                foreach($data as $mi)
+                {
+                  fwrite($f, '      <multipleindex>');
+                  $expmi = explode(".",substr($mi, 3));
+                  foreach($expmi as $fmi)
+                  {
+                    fwrite($f, '<field>'.$fmi.'</field>');
+                  }
+                  fwrite($f, '</multipleindex>'.PHP_EOL);
+                }
+                break;
+              case DB_Check::MU:
+                foreach($data as $mi)
+                {
+                  fwrite($f, '      <multipleuniqueindex>');
+                  $expmi = explode(".",substr($mi, 3));
+                  foreach($expmi as $fmi)
+                  {
+                    fwrite($f, '<field>'.$fmi.'</field>');
+                  }
+                  fwrite($f, '</multipleuniqueindex>'.PHP_EOL);
+                }
+                break;
+              case DB_Check::DC:
+                fwrite($f, '      <deletecascade>true</deletecascade>'.PHP_EOL);
+                break;
+              case DB_Check::TR:
+                fwrite($f, '      <transfer>true</transfer>'.PHP_EOL);
+                break;
+            }
+          }
+        }
+      }
+      fwrite($f, '    </'.$field->getName().'>'.PHP_EOL);
+    }
+    fwrite($f, '  </fields>'.PHP_EOL);
+    fwrite($f, '</table>'.PHP_EOL);
+    fclose($f);
+  }
+}
+
+?>

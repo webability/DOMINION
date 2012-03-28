@@ -107,7 +107,7 @@ final class DB_FieldInteger extends DB_Field
           return "NULL";
       }
     }
-    return $v;
+    return sprintf("%F", $v);
   }
 
   protected function serial(&$data)

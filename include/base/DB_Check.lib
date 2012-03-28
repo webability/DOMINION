@@ -82,6 +82,11 @@ class DB_Check extends WAClass
     }
   }
 
+  public function getChecks()
+  {
+    return $this->checks;
+  }
+
   public function createCheck($name, $DB)
   {
     if (self::$debug || $this->localdebug)

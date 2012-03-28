@@ -1,0 +1,241 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<BASE_country>
+<record><key>AS</key><name>Samoa Americana</name><father></father><condition></condition></record>
+<record><key>AD</key><name>Andorra</name><father></father><condition></condition></record>
+<record><key>AO</key><name>Angola</name><father></father><condition></condition></record>
+<record><key>AI</key><name>Anguila</name><father></father><condition></condition></record>
+<record><key>AQ</key><name>Antártida</name><father></father><condition></condition></record>
+<record><key>AG</key><name>Antigua y Barbuda</name><father></father><condition></condition></record>
+<record><key>AF</key><name>Afganistán</name><father></father><condition></condition></record>
+<record><key>AL</key><name>Albania</name><father></father><condition></condition></record>
+<record><key>AR</key><name>Argentina</name><father></father><condition></condition></record>
+<record><key>AM</key><name>Armenia</name><father></father><condition></condition></record>
+<record><key>AW</key><name>Aruba</name><father></father><condition></condition></record>
+<record><key>AU</key><name>Australia</name><father></father><condition></condition></record>
+<record><key>AT</key><name>Austria</name><father></father><condition></condition></record>
+<record><key>AZ</key><name>Azerbaiyán</name><father></father><condition></condition></record>
+<record><key>BS</key><name>Bahamas</name><father></father><condition></condition></record>
+<record><key>BH</key><name>Bahráin</name><father></father><condition></condition></record>
+<record><key>BD</key><name>Bangladesh</name><father></father><condition></condition></record>
+<record><key>BB</key><name>Barbados</name><father></father><condition></condition></record>
+<record><key>BY</key><name>Bielorrusia</name><father></father><condition></condition></record>
+<record><key>BE</key><name>Bélgica</name><father></father><condition></condition></record>
+<record><key>BZ</key><name>Belice</name><father></father><condition></condition></record>
+<record><key>BJ</key><name>Benín</name><father></father><condition></condition></record>
+<record><key>BM</key><name>Bermudas</name><father></father><condition></condition></record>
+<record><key>BT</key><name>Bután</name><father></father><condition></condition></record>
+<record><key>BO</key><name>Bolivia</name><father></father><condition></condition></record>
+<record><key>BA</key><name>Bosnia y Hercegovina</name><father></father><condition></condition></record>
+<record><key>BW</key><name>Botsuana</name><father></father><condition></condition></record>
+<record><key>BV</key><name>Isla Bouvet</name><father></father><condition></condition></record>
+<record><key>BR</key><name>Brasil</name><father></father><condition></condition></record>
+<record><key>IO</key><name>Territorio Británico del  Océano Indico</name><father></father><condition></condition></record>
+<record><key>BN</key><name>Brunéi</name><father></father><condition></condition></record>
+<record><key>BG</key><name>Bulgaria</name><father></father><condition></condition></record>
+<record><key>BF</key><name>Burkina Faso</name><father></father><condition></condition></record>
+<record><key>BI</key><name>Burundi</name><father></father><condition></condition></record>
+<record><key>KH</key><name>Camboya</name><father></father><condition></condition></record>
+<record><key>CM</key><name>Camerún</name><father></father><condition></condition></record>
+<record><key>CA</key><name>Canadá</name><father></father><condition></condition></record>
+<record><key>CV</key><name>Cabo Verde</name><father></father><condition></condition></record>
+<record><key>KY</key><name>Islas Caimán</name><father></father><condition></condition></record>
+<record><key>CF</key><name>República Centroafricana</name><father></father><condition></condition></record>
+<record><key>TD</key><name>Chad</name><father></father><condition></condition></record>
+<record><key>CL</key><name>Chile</name><father></father><condition></condition></record>
+<record><key>CN</key><name>China</name><father></father><condition></condition></record>
+<record><key>CX</key><name>Isla Christmas</name><father></father><condition></condition></record>
+<record><key>CC</key><name>Islas Cocos</name><father></father><condition></condition></record>
+<record><key>CO</key><name>Colombia</name><father></father><condition></condition></record>
+<record><key>KM</key><name>Comoras</name><father></father><condition></condition></record>
+<record><key>CG</key><name>Congo</name><father></father><condition></condition></record>
+<record><key>CD</key><name>República Democrática del Congo</name><father></father><condition></condition></record>
+<record><key>CK</key><name>Islas Cook</name><father></father><condition></condition></record>
+<record><key>CR</key><name>Costa Rica</name><father></father><condition></condition></record>
+<record><key>CI</key><name>Costa de Marfil</name><father></father><condition></condition></record>
+<record><key>HR</key><name>Croacia</name><father></father><condition></condition></record>
+<record><key>CU</key><name>Cuba</name><father></father><condition></condition></record>
+<record><key>CY</key><name>Chipre</name><father></father><condition></condition></record>
+<record><key>CZ</key><name>República Checa</name><father></father><condition></condition></record>
+<record><key>DK</key><name>Dinamarca</name><father></father><condition></condition></record>
+<record><key>DJ</key><name>Yibuti</name><father></father><condition></condition></record>
+<record><key>DM</key><name>Dominica</name><father></father><condition></condition></record>
+<record><key>DO</key><name>República Dominicana</name><father></father><condition></condition></record>
+<record><key>TP</key><name>Timor Oriental</name><father></father><condition></condition></record>
+<record><key>EC</key><name>Ecuador</name><father></father><condition></condition></record>
+<record><key>EG</key><name>Egipto</name><father></father><condition></condition></record>
+<record><key>SV</key><name>El Salvador</name><father></father><condition></condition></record>
+<record><key>GQ</key><name>Guinea Ecuatorial</name><father></father><condition></condition></record>
+<record><key>ER</key><name>Eritrea</name><father></father><condition></condition></record>
+<record><key>EE</key><name>Estonia</name><father></father><condition></condition></record>
+<record><key>ET</key><name>Etiopía</name><father></father><condition></condition></record>
+<record><key>FK</key><name>Islas Malvinas</name><father></father><condition></condition></record>
+<record><key>FO</key><name>Islas Feroe</name><father></father><condition></condition></record>
+<record><key>FJ</key><name>Fiyi</name><father></father><condition></condition></record>
+<record><key>FI</key><name>Finlandia</name><father></father><condition></condition></record>
+<record><key>FR</key><name>Francia</name><father></father><condition></condition></record>
+<record><key>GF</key><name>Guayana Francesa</name><father></father><condition></condition></record>
+<record><key>PF</key><name>Polinesia Francesa</name><father></father><condition></condition></record>
+<record><key>TF</key><name>Territorios Australes Franceses</name><father></father><condition></condition></record>
+<record><key>GA</key><name>Gabón</name><father></father><condition></condition></record>
+<record><key>GM</key><name>Gambia</name><father></father><condition></condition></record>
+<record><key>GE</key><name>Georgia</name><father></father><condition></condition></record>
+<record><key>DE</key><name>Alemania</name><father></father><condition></condition></record>
+<record><key>GH</key><name>Ghana</name><father></father><condition></condition></record>
+<record><key>GI</key><name>Gibraltar</name><father></father><condition></condition></record>
+<record><key>GR</key><name>Grecia</name><father></father><condition></condition></record>
+<record><key>GL</key><name>Groenlandia</name><father></father><condition></condition></record>
+<record><key>GD</key><name>Granada</name><father></father><condition></condition></record>
+<record><key>GP</key><name>Guadalupe</name><father></father><condition></condition></record>
+<record><key>GU</key><name>Guam</name><father></father><condition></condition></record>
+<record><key>GT</key><name>Guatemala</name><father></father><condition></condition></record>
+<record><key>GN</key><name>Guinea</name><father></father><condition></condition></record>
+<record><key>GW</key><name>Guinea-Bissau</name><father></father><condition></condition></record>
+<record><key>GY</key><name>Guyana</name><father></father><condition></condition></record>
+<record><key>HT</key><name>Haití</name><father></father><condition></condition></record>
+<record><key>HM</key><name>Islas Heard y McDonald</name><father></father><condition></condition></record>
+<record><key>VA</key><name>El Vaticano (Santa Sede) (Estado de la Ciudad del Vaticano)</name><father></father><condition></condition></record>
+<record><key>HN</key><name>Honduras</name><father></father><condition></condition></record>
+<record><key>HK</key><name>Hong Kong</name><father></father><condition></condition></record>
+<record><key>HU</key><name>Hungría</name><father></father><condition></condition></record>
+<record><key>IS</key><name>Islandia</name><father></father><condition></condition></record>
+<record><key>IN</key><name>India</name><father></father><condition></condition></record>
+<record><key>ID</key><name>Indonesia</name><father></father><condition></condition></record>
+<record><key>IR</key><name>Irán</name><father></father><condition></condition></record>
+<record><key>IQ</key><name>Iraq</name><father></father><condition></condition></record>
+<record><key>IE</key><name>Irlanda</name><father></father><condition></condition></record>
+<record><key>IL</key><name>Israel</name><father></father><condition></condition></record>
+<record><key>IT</key><name>Italia</name><father></father><condition></condition></record>
+<record><key>JM</key><name>Jamaica</name><father></father><condition></condition></record>
+<record><key>JP</key><name>Japón</name><father></father><condition></condition></record>
+<record><key>JO</key><name>Jordania</name><father></father><condition></condition></record>
+<record><key>KZ</key><name>Kazajistán</name><father></father><condition></condition></record>
+<record><key>KE</key><name>Kenia</name><father></father><condition></condition></record>
+<record><key>KI</key><name>Kiribati</name><father></father><condition></condition></record>
+<record><key>KP</key><name>Corea del Norte (República Popular Democrática de Corea)</name><father></father><condition></condition></record>
+<record><key>KR</key><name>Corea del Sur (República de Corea)</name><father></father><condition></condition></record>
+<record><key>KW</key><name>Kuwait</name><father></father><condition></condition></record>
+<record><key>KG</key><name>Kirguizistán</name><father></father><condition></condition></record>
+<record><key>DZ</key><name>Argelia</name><father></father><condition></condition></record>
+<record><key>LA</key><name>Laos (República Democrática Popular Lao)</name><father></father><condition></condition></record>
+<record><key>LV</key><name>Letonia</name><father></father><condition></condition></record>
+<record><key>LB</key><name>Líbano</name><father></father><condition></condition></record>
+<record><key>LS</key><name>Lesoto</name><father></father><condition></condition></record>
+<record><key>LR</key><name>Liberia</name><father></father><condition></condition></record>
+<record><key>LY</key><name>Libia (Gran Yamahiriya Árabe Libia Popular y Socialista)</name><father></father><condition></condition></record>
+<record><key>LI</key><name>Liechtenstein</name><father></father><condition></condition></record>
+<record><key>LT</key><name>Lituania</name><father></father><condition></condition></record>
+<record><key>LU</key><name>Luxemburgo</name><father></father><condition></condition></record>
+<record><key>MO</key><name>Macao</name><father></father><condition></condition></record>
+<record><key>MK</key><name>Macedonia (Antigua República Yugoslava de Macedonia)</name><father></father><condition></condition></record>
+<record><key>MG</key><name>Madagascar</name><father></father><condition></condition></record>
+<record><key>MW</key><name>Malaui</name><father></father><condition></condition></record>
+<record><key>MY</key><name>Malasia</name><father></father><condition></condition></record>
+<record><key>MV</key><name>Maldivas</name><father></father><condition></condition></record>
+<record><key>ML</key><name>Malí</name><father></father><condition></condition></record>
+<record><key>MT</key><name>Malta</name><father></father><condition></condition></record>
+<record><key>MH</key><name>Islas Marshall</name><father></father><condition></condition></record>
+<record><key>MQ</key><name>Martinica</name><father></father><condition></condition></record>
+<record><key>MR</key><name>Mauritania</name><father></father><condition></condition></record>
+<record><key>MU</key><name>Mauricio</name><father></father><condition></condition></record>
+<record><key>YT</key><name>Mayotte</name><father></father><condition></condition></record>
+<record><key>MX</key><name>México</name><father></father><condition></condition></record>
+<record><key>FM</key><name>Micronesia (Estados Federados de Micronesia)</name><father></father><condition></condition></record>
+<record><key>MD</key><name>Moldavia (República de Moldavia)</name><father></father><condition></condition></record>
+<record><key>MC</key><name>Mónaco</name><father></father><condition></condition></record>
+<record><key>MN</key><name>Mongolia</name><father></father><condition></condition></record>
+<record><key>MS</key><name>Montserrat</name><father></father><condition></condition></record>
+<record><key>MA</key><name>Marruecos</name><father></father><condition></condition></record>
+<record><key>MZ</key><name>Mozambique</name><father></father><condition></condition></record>
+<record><key>MM</key><name>Myanmar (Birmania)</name><father></father><condition></condition></record>
+<record><key>NA</key><name>Namibia</name><father></father><condition></condition></record>
+<record><key>NR</key><name>Nauru</name><father></father><condition></condition></record>
+<record><key>NP</key><name>Nepal</name><father></father><condition></condition></record>
+<record><key>NL</key><name>Países Bajos</name><father></father><condition></condition></record>
+<record><key>AN</key><name>Antillas Neerlandesas</name><father></father><condition></condition></record>
+<record><key>NC</key><name>Nueva Caledonia</name><father></father><condition></condition></record>
+<record><key>NZ</key><name>Nueva Zelanda</name><father></father><condition></condition></record>
+<record><key>NI</key><name>Nicaragua</name><father></father><condition></condition></record>
+<record><key>NE</key><name>Níger</name><father></father><condition></condition></record>
+<record><key>NG</key><name>Nigeria</name><father></father><condition></condition></record>
+<record><key>NU</key><name>Niue</name><father></father><condition></condition></record>
+<record><key>NF</key><name>Isla Norfolk</name><father></father><condition></condition></record>
+<record><key>MP</key><name>Islas Marianas del Norte</name><father></father><condition></condition></record>
+<record><key>NO</key><name>Noruega</name><father></father><condition></condition></record>
+<record><key>OM</key><name>Omán</name><father></father><condition></condition></record>
+<record><key>PK</key><name>Pakistán</name><father></father><condition></condition></record>
+<record><key>PW</key><name>Palaos</name><father></father><condition></condition></record>
+<record><key>PA</key><name>Panamá</name><father></father><condition></condition></record>
+<record><key>PG</key><name>Papúa-Nueva Guinea</name><father></father><condition></condition></record>
+<record><key>PY</key><name>Paraguay</name><father></father><condition></condition></record>
+<record><key>PE</key><name>Perú</name><father></father><condition></condition></record>
+<record><key>PH</key><name>Filipinas</name><father></father><condition></condition></record>
+<record><key>PN</key><name>Islas Pitcairn</name><father></father><condition></condition></record>
+<record><key>PL</key><name>Polonia</name><father></father><condition></condition></record>
+<record><key>PT</key><name>Portugal</name><father></father><condition></condition></record>
+<record><key>PR</key><name>Puerto Rico</name><father></father><condition></condition></record>
+<record><key>QA</key><name>Qatar</name><father></father><condition></condition></record>
+<record><key>RE</key><name>Reunión</name><father></father><condition></condition></record>
+<record><key>RO</key><name>Rumania (Rumanía)</name><father></father><condition></condition></record>
+<record><key>RU</key><name>Rusia (Federación de Rusia)</name><father></father><condition></condition></record>
+<record><key>RW</key><name>Ruanda</name><father></father><condition></condition></record>
+<record><key>SH</key><name>Santa Helena</name><father></father><condition></condition></record>
+<record><key>KN</key><name>San Cristóbal y Nieves</name><father></father><condition></condition></record>
+<record><key>LC</key><name>Santa Lucía</name><father></father><condition></condition></record>
+<record><key>PM</key><name>San Pedro y  Miquelón</name><father></father><condition></condition></record>
+<record><key>VC</key><name>San Vicente y las Granadinas</name><father></father><condition></condition></record>
+<record><key>WS</key><name>Samoa</name><father></father><condition></condition></record>
+<record><key>SM</key><name>San Marino</name><father></father><condition></condition></record>
+<record><key>ST</key><name>Santo Tomé y Príncipe</name><father></father><condition></condition></record>
+<record><key>SA</key><name>Arabia Saudí</name><father></father><condition></condition></record>
+<record><key>SN</key><name>Senegal</name><father></father><condition></condition></record>
+<record><key>SC</key><name>Seychelles</name><father></father><condition></condition></record>
+<record><key>SL</key><name>Sierra Leona</name><father></father><condition></condition></record>
+<record><key>SG</key><name>Singapur</name><father></father><condition></condition></record>
+<record><key>SK</key><name>Eslovaquia</name><father></father><condition></condition></record>
+<record><key>SI</key><name>Eslovenia</name><father></father><condition></condition></record>
+<record><key>SB</key><name>Islas Salomón</name><father></father><condition></condition></record>
+<record><key>SO</key><name>Somalia</name><father></father><condition></condition></record>
+<record><key>ZA</key><name>Sudáfrica</name><father></father><condition></condition></record>
+<record><key>GS</key><name>Islas Georgia del Sur y Sandwich del Sur</name><father></father><condition></condition></record>
+<record><key>ES</key><name>España</name><father></father><condition></condition></record>
+<record><key>LK</key><name>Sri Lanka</name><father></father><condition></condition></record>
+<record><key>SD</key><name>Sudán</name><father></father><condition></condition></record>
+<record><key>SR</key><name>Surinam</name><father></father><condition></condition></record>
+<record><key>SJ</key><name>Svalbard y Jan Mayen</name><father></father><condition></condition></record>
+<record><key>SZ</key><name>Suazilandia</name><father></father><condition></condition></record>
+<record><key>SE</key><name>Suecia</name><father></father><condition></condition></record>
+<record><key>CH</key><name>Suiza</name><father></father><condition></condition></record>
+<record><key>SY</key><name>Siria (República Árabe Siria)</name><father></father><condition></condition></record>
+<record><key>TW</key><name>Taiwán</name><father></father><condition></condition></record>
+<record><key>TJ</key><name>Tayikistán</name><father></father><condition></condition></record>
+<record><key>TZ</key><name>Tanzania (República Unida de Tanzania)</name><father></father><condition></condition></record>
+<record><key>TH</key><name>Tailandia</name><father></father><condition></condition></record>
+<record><key>TG</key><name>Togo</name><father></father><condition></condition></record>
+<record><key>TK</key><name>Tokelau</name><father></father><condition></condition></record>
+<record><key>TO</key><name>Tonga</name><father></father><condition></condition></record>
+<record><key>TT</key><name>Trinidad y Tobago</name><father></father><condition></condition></record>
+<record><key>TN</key><name>Túnez</name><father></father><condition></condition></record>
+<record><key>TR</key><name>Turquía</name><father></father><condition></condition></record>
+<record><key>TM</key><name>Turkmenistán</name><father></father><condition></condition></record>
+<record><key>TC</key><name>Islas Turcas y Caicos</name><father></father><condition></condition></record>
+<record><key>TV</key><name>Tuvalu</name><father></father><condition></condition></record>
+<record><key>UG</key><name>Uganda</name><father></father><condition></condition></record>
+<record><key>UA</key><name>Ucrania</name><father></father><condition></condition></record>
+<record><key>AE</key><name>Emiratos Árabes Unidos</name><father></father><condition></condition></record>
+<record><key>GB</key><name>Reino Unido</name><father></father><condition></condition></record>
+<record><key>US</key><name>Estados Unidos</name><father></father><condition></condition></record>
+<record><key>UM</key><name>Islas menores alejadas de los Estados Unidos</name><father></father><condition></condition></record>
+<record><key>UY</key><name>Uruguay</name><father></father><condition></condition></record>
+<record><key>UZ</key><name>Uzbekistán</name><father></father><condition></condition></record>
+<record><key>VU</key><name>Vanuatu</name><father></father><condition></condition></record>
+<record><key>VE</key><name>Venezuela</name><father></father><condition></condition></record>
+<record><key>VN</key><name>Vietnam</name><father></father><condition></condition></record>
+<record><key>VG</key><name>Islas Vírgenes Británicas</name><father></father><condition></condition></record>
+<record><key>VI</key><name>Islas Vírgenes Americanas</name><father></father><condition></condition></record>
+<record><key>WF</key><name>Wallis y Futuna</name><father></father><condition></condition></record>
+<record><key>EH</key><name>Sáhara Occidental</name><father></father><condition></condition></record>
+<record><key>YE</key><name>Yemen</name><father></father><condition></condition></record>
+<record><key>YU</key><name>Yugoslavia</name><father></father><condition></condition></record>
+<record><key>ZM</key><name>Zambia</name><father></father><condition></condition></record>
+<record><key>ZW</key><name>Zimbabue</name><father></father><condition></condition></record>
+</BASE_country>
